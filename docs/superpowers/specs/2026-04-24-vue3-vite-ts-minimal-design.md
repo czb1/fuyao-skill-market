@@ -77,4 +77,3 @@
 - `npm run lint`、`npm run format` 可运行
 - 当代码出现不带 `{}` 的控制语句体时，ESLint 能报错
 - 当对象/数组等多行结构未使用拖尾逗号时，Prettier 会格式化为带拖尾逗号
-
