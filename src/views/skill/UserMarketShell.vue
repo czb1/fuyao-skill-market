@@ -437,7 +437,7 @@ const donutSegments = computed(() => {
       </div>
     </section>
 
-    <nav class="sub-tabs" aria-label="市场分区">
+    <nav class="sub-tabs" :class="{ 'ops-tabs': innerTab === 'ops' }" aria-label="市场分区">
       <button
         type="button"
         class="sub-tab"
@@ -472,7 +472,7 @@ const donutSegments = computed(() => {
       </button>
     </nav>
 
-    <div v-if="innerTab === 'overview'" class="panel tab-panel">
+    <div v-if="innerTab === 'overview'" class="panel tab-panel overview-panel">
       <div class="panel-head">
         <div>
           <h2 class="panel-title">市场总览</h2>
@@ -750,7 +750,7 @@ const donutSegments = computed(() => {
           <div class="kpi-sub">Skill 累计下载</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-k">全市场近 30 天下架</div>
+          <div class="kpi-k">全市场近 30 天下载</div>
           <div class="kpi-v">{{ uiOpsStats.last30Days }}</div>
           <div class="kpi-sub">Skill 近 30 天下载量</div>
         </div>
@@ -766,7 +766,7 @@ const donutSegments = computed(() => {
         </div>
       </div>
 
-      <section class="ops-block">
+      <section class="ops-count-block">
         <div class="blk-head">
           <h3 class="blk-title">层级数量分布</h3>
           <p class="blk-help">个人、开发部、PDU、产品线四层级 Skill 分布，一键看趋势。</p>
@@ -926,13 +926,18 @@ const donutSegments = computed(() => {
 
 <style scoped>
 .user-shell {
-  padding: 0 24px 32px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0 clamp(16px, 2vw, 32px) 32px;
+  box-sizing: border-box;
 }
 
 .hero {
   margin-top: 16px;
+  width: 100%;
+  box-sizing: border-box;
   border-radius: 8px;
   background: linear-gradient(105deg, #e6f4ff 0%, #f0e6ff 100%);
   padding: 26px 28px;
@@ -940,8 +945,12 @@ const donutSegments = computed(() => {
 }
 
 .hero-inner {
-  max-width: 820px;
+  max-width: none;
   text-align: left;
+}
+
+.hero-desc {
+  max-width: 980px;
 }
 
 .badge {
@@ -1011,6 +1020,9 @@ const donutSegments = computed(() => {
   display: flex;
   gap: 4px;
   margin-top: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
   padding: 0 8px;
   background: #fafafa;
   border: 1px solid #f0f0f0;
@@ -1019,6 +1031,7 @@ const donutSegments = computed(() => {
 }
 
 .sub-tab {
+  flex: 0 0 auto;
   border: none;
   background: transparent;
   padding: 12px 16px;
@@ -1027,6 +1040,7 @@ const donutSegments = computed(() => {
   color: rgba(0, 0, 0, 0.65);
   border-bottom: 2px solid transparent;
   margin-bottom: 0;
+  white-space: nowrap;
 }
 
 .sub-tab.on {
@@ -1035,7 +1049,34 @@ const donutSegments = computed(() => {
   font-weight: 500;
 }
 
+/* .sub-tabs.ops-tabs {
+  align-items: center;
+  gap: 22px;
+  min-height: 64px;
+  padding: 0 22px;
+  background: #e8eef7;
+  border: 1px solid #cfd9e8;
+  border-radius: 8px;
+}
+
+.sub-tabs.ops-tabs .sub-tab {
+  border-bottom: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #334155;
+  font-weight: 700;
+}
+
+.sub-tabs.ops-tabs .sub-tab.on {
+  background: #fff;
+  color: #0958d9;
+  border: 2px solid #111827;
+  box-shadow: none;
+} */
+
 .panel.tab-panel {
+  width: 100%;
+  box-sizing: border-box;
   margin-top: 0;
   background: #fff;
   border-radius: 0 0 8px 8px;
@@ -1043,6 +1084,13 @@ const donutSegments = computed(() => {
   border: 1px solid #f0f0f0;
   border-top: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.panel.tab-panel.overview-panel {
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 180px);
+  padding: 20px;
+  border-color: #e7edf6;
+  box-shadow: 0 10px 28px rgba(22, 58, 105, 0.06);
 }
 
 .panel.muted {
@@ -1209,6 +1257,7 @@ const donutSegments = computed(() => {
 
 .table-wrap {
   overflow-x: auto;
+  height: 445px;
 }
 
 .table {
@@ -1229,6 +1278,14 @@ const donutSegments = computed(() => {
   background: #fafafa;
   color: rgba(0, 0, 0, 0.65);
   font-weight: 500;
+}
+
+.my-table th {
+  white-space: nowrap;
+}
+
+.my-table {
+  min-width: 1120px;
 }
 
 .col-skill {
@@ -1334,136 +1391,163 @@ const donutSegments = computed(() => {
 }
 
 .panel.tab-panel.ops {
-  padding-top: 16px;
+  padding: 22px 0 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .ops-alert {
-  background: rgba(22, 119, 255, 0.06);
-  border: 1px solid rgba(22, 119, 255, 0.2);
+  background: #eff6ff;
+  border: 1px solid #b7d5ff;
   border-radius: 8px;
-  padding: 10px 12px;
-  color: rgba(0, 0, 0, 0.72);
-  font-size: 13px;
+  padding: 16px 18px;
+  color: #155bd4;
+  font-size: 14px;
   line-height: 1.7;
-  margin: 10px 0 14px;
+  margin: 0 0 18px;
+  width: 100%;
 }
 
 .ops-alert strong {
-  color: #1677ff;
-  margin-right: 6px;
+  color: #064ec4;
+  margin-right: 4px;
 }
 
 .ops-kpis {
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 14px;
+  grid-auto-flow: column;
+  grid-template-columns: 265px, 1fr;
+  gap: 18px;
+  margin-bottom: 24px;
 }
 
-@media (max-width: 1100px) {
+/* @media (max-width: 1100px) {
   .ops-kpis {
     grid-template-columns: repeat(2, 1fr);
   }
-}
+} */
 
 .kpi-card {
   background: #fff;
-  border: 1px solid #f0f0f0;
-  border-radius: 10px;
-  padding: 14px 14px 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 121px;
+  box-shadow: 0 14px 32px rgba(18, 52, 91, 0.06);
+  box-sizing: border-box;
 }
 
 .kpi-k {
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.55);
+  font-weight: 800;
+  color: #51647f;
 }
 
 .kpi-v {
   margin-top: 8px;
-  font-size: 24px;
+  font-size: 28px;
+  line-height: 1;
   font-weight: 700;
-  color: rgba(0, 0, 0, 0.88);
+  color: #061a3d;
   font-variant-numeric: tabular-nums;
 }
 
 .kpi-sub {
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
+  color: #526782;
 }
 
-.ops-block {
+.ops-block,
+.ops-count-block {
   background: #fff;
-  border: 1px solid #f0f0f0;
+  border: 1px solid #dbe3ef;
   border-radius: 10px;
-  padding: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 14px 34px rgba(18, 52, 91, 0.06);
+  /* height: 420px; */
+}
+
+.ops-count-block {
+  width: 100%;
+}
+.ops-block {
+  width: 100%;
 }
 
 .blk-head {
-  margin-bottom: 10px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 0;
 }
 
 .blk-title {
-  margin: 0 0 4px;
-  font-size: 15px;
-  color: rgba(0, 0, 0, 0.88);
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #061a3d;
 }
 
 .blk-help {
   margin: 0;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  color: #526782;
   line-height: 1.6;
 }
 
 .lvl-bars {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  padding: 18px 20px;
+  height: 140px;
 }
 
 .lvl-row {
   display: grid;
-  grid-template-columns: 80px 1fr 44px;
-  gap: 10px;
+  grid-template-columns: 92px minmax(0, 1fr) 48px;
   align-items: center;
 }
 
 .lvl-name {
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.65);
+  font-weight: 700;
+  color: #061a3d;
 }
 
 .lvl-track {
-  height: 10px;
-  background: #f5f5f5;
+  width: 97%;
+  height: 14px;
+  background: #eaf0f7;
   border-radius: 999px;
   overflow: hidden;
 }
 
 .lvl-fill {
   height: 100%;
-  background: linear-gradient(90deg, #0aaee6 0%, #1677ff 100%);
+  background: linear-gradient(90deg, #08b7ca 0%, #2f5df4 100%);
   border-radius: 999px;
 }
 
 .lvl-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: rgba(0, 0, 0, 0.65);
-  font-size: 13px;
+  color: #061a3d;
+  font-size: 14px;
 }
 
 .ops-2col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 12px;
+  display: flex;
+  align-items: start;
+  gap: 22px;
+  margin-top: 24px;
+  width: 100%;
 }
 
 .ops-2col.bottom {
-  margin-top: 12px;
+  margin-top: 20px;
 }
 
 @media (max-width: 1000px) {
@@ -1472,67 +1556,119 @@ const donutSegments = computed(() => {
   }
 }
 
+@media (max-width: 720px) {
+  .lvl-row {
+    grid-template-columns: 72px minmax(0, 1fr) 38px;
+    gap: 10px;
+  }
+
+  .blk-title {
+    font-size: 18px;
+  }
+
+  .blk-help {
+    font-size: 13px;
+  }
+
+  .kpi-v {
+    font-size: 30px;
+  }
+}
+
+.ops-block > .table-wrap,
+.ops-block > .scene {
+  padding: 18px 20px;
+}
+
+.panel.tab-panel.ops .table {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.panel.tab-panel.ops .table th {
+  background: #f8fafc;
+  color: #51647f;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.panel.tab-panel.ops .table th,
+.panel.tab-panel.ops .table td {
+  padding: 12px 18px;
+}
+
 .rank-list {
   display: grid;
-  gap: 10px;
+  gap: 16px;
+  padding: 18px 20px;
+  height: 354px;
 }
 
 .rank-row {
-  border: 1px solid #f0f0f0;
+  border: 1px solid #dbe3ef;
   border-radius: 8px;
-  padding: 10px 10px 10px;
+  padding: 12px 14px;
   display: grid;
   grid-template-columns: 1fr auto;
   grid-template-rows: auto auto;
-  gap: 6px 10px;
+  /* gap: 12px; */
   background: #fff;
 }
 
 .rank-left {
+  font-size: 13px;
+  height: 19px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  /* gap: 6px; */
 }
 
 .rk {
-  color: rgba(0, 0, 0, 0.45);
-  font-size: 12px;
+  color: #061a3d;
+  font-weight: 700;
 }
 
 .rname {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.88);
+  font-weight: 700;
+  color: #061a3d;
 }
 
 .rank-right {
-  align-self: center;
+  font-size: 13px;
+  /* align-self: center; */
+  height: 19px;
 }
 
 .rcount {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.55);
+  font-weight: 700;
+  color: #536982;
   font-variant-numeric: tabular-nums;
 }
 
 .rbar {
   grid-column: 1 / -1;
-  height: 8px;
-  background: #f5f5f5;
+  height: 12px;
+  background: #eaf0f7;
   border-radius: 999px;
   overflow: hidden;
 }
 
 .rfill {
   height: 100%;
-  background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+  background: linear-gradient(90deg, #2563eb 0%, #8b35e8 100%);
   border-radius: 999px;
 }
 
 .scene {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 8px;
   align-items: center;
+  height: 445px;
 }
 
 @media (max-width: 980px) {
@@ -1543,8 +1679,8 @@ const donutSegments = computed(() => {
 
 .donut {
   position: relative;
-  width: 220px;
-  height: 220px;
+  width: 250px;
+  height: 250px;
   margin: 0 auto;
 }
 
@@ -1582,16 +1718,18 @@ const donutSegments = computed(() => {
 }
 
 .scene-item {
-  border: 1px solid #f0f0f0;
+  border: 1px solid #dbe3ef;
   border-radius: 8px;
-  padding: 10px 10px 9px;
+  padding: 9px 10px;
   background: #fff;
 }
 
 .scene-top {
+  font-size: 13px;
+  height: 19px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0 8px;
 }
 
 .dot {
@@ -1602,20 +1740,21 @@ const donutSegments = computed(() => {
 
 .sname {
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.88);
+  color: #061a3d;
 }
 
 .spct {
   margin-left: auto;
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.55);
+  color: #061a3d;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .scene-sub {
   margin-top: 6px;
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
+  color: #526782;
   line-height: 1.6;
 }
 
@@ -1645,6 +1784,32 @@ const donutSegments = computed(() => {
   text-align: left;
 }
 
+.overview-panel .panel-head {
+  align-items: center;
+  padding: 16px;
+  margin-bottom: 14px;
+  background: #fff;
+  border: 1px solid #edf2f7;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(28, 72, 122, 0.05);
+}
+
+.overview-panel .panel-title {
+  font-size: 20px;
+  color: #10243e;
+}
+
+.overview-panel .panel-help {
+  color: #667085;
+}
+
+.overview-panel .btn.primary.sm {
+  height: 34px;
+  padding: 0 14px;
+  box-shadow: 0 6px 14px rgba(24, 144, 255, 0.18);
+  white-space: nowrap;
+}
+
 .stats-strip {
   display: flex;
   align-items: stretch;
@@ -1653,23 +1818,52 @@ const donutSegments = computed(() => {
   background: #fafafa;
   border: 1px solid #f0f0f0;
   border-radius: 8px;
-  padding: 10px 8px;
-  margin-bottom: 20px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
   gap: 0;
 }
 
+.overview-panel .stats-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin-bottom: 14px;
+}
+
 .stat-cell {
-  flex: 1 1 140px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background-color: #fff;
+  border: 1px solid #edf2f7;
+  white-space: nowrap;
+}
+
+.overview-panel .stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
-  gap: 8px;
-  padding: 4px 10px;
+  min-height: 76px;
+  gap: 6px;
+  padding: 14px 16px;
+  background: #fff;
+  border-color: #e7edf6;
+  box-shadow: 0 4px 14px rgba(28, 72, 122, 0.05);
 }
 
 .stat-k {
   font-size: 13px;
   color: rgba(0, 0, 0, 0.45);
+}
+
+.overview-panel .stat-k {
+  color: #667085;
 }
 
 .stat-v {
@@ -1679,12 +1873,22 @@ const donutSegments = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
+.overview-panel .stat-v {
+  font-size: 24px;
+  line-height: 1;
+  color: #10243e;
+}
+
 .stat-div {
   width: 1px;
   background: #e8e8e8;
   align-self: stretch;
   min-height: 48px;
   margin: 4px 0;
+}
+
+.overview-panel .stat-div {
+  display: none;
 }
 
 @media (max-width: 720px) {
@@ -1701,6 +1905,12 @@ const donutSegments = computed(() => {
   padding: 12px 12px 12px;
 }
 
+.overview-panel .filter-block {
+  padding: 14px;
+  border-color: #e7edf6;
+  box-shadow: 0 4px 16px rgba(28, 72, 122, 0.04);
+}
+
 .quick-row {
   display: flex;
   align-items: flex-start;
@@ -1709,17 +1919,22 @@ const donutSegments = computed(() => {
   flex-wrap: wrap;
 }
 
+.overview-panel .quick-row {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .quick-label {
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.55);
-  padding-top: 6px;
-  flex-shrink: 0;
+  color: #475467;
+  font-weight: 600;
+  padding-top: 0;
 }
 
 .quick-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
 }
 
@@ -1728,10 +1943,17 @@ const donutSegments = computed(() => {
   background: #fafafa;
   color: rgba(0, 0, 0, 0.65);
   border-radius: 4px;
-  padding: 4px 10px;
   font-size: 13px;
   cursor: pointer;
-  line-height: 1.5;
+  padding: 5px 12px;
+
+}
+
+.overview-panel .pill {
+  background: #fff;
+  border-color: #d8e1ec;
+  border-radius: 999px;
+  color: #344054;
 }
 
 .pill:hover {
@@ -1746,14 +1968,30 @@ const donutSegments = computed(() => {
   font-weight: 500;
 }
 
+.overview-panel .pill.active {
+  background: #1677ff;
+  border-color: #1677ff;
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(22, 119, 255, 0.18);
+}
+
 .filters {
   display: grid;
-  grid-template-columns: 1fr 240px 240px;
+  grid-template-columns: minmax(280px, 1fr) minmax(180px, 240px) minmax(160px, 220px);
   gap: 12px;
+}
+
+.overview-panel .filters {
+  grid-template-columns: minmax(280px, 1fr) minmax(180px, 220px) minmax(160px, 200px);
+  gap: 10px;
 }
 
 @media (max-width: 900px) {
   .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-panel .filters {
     grid-template-columns: 1fr;
   }
 }
@@ -1767,10 +2005,94 @@ const donutSegments = computed(() => {
   height: 34px;
 }
 
+.overview-panel .search,
+.overview-panel .select {
+  height: 38px;
+  border-color: #d8e1ec;
+  background-color: #fbfdff;
+}
+
+.overview-panel .search:focus,
+.overview-panel .select:focus {
+  border-color: #1677ff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.1);
+}
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
+}
+
+.overview-panel .grid {
+  gap: 14px;
+}
+
+.overview-panel :deep(.card) {
+  min-height: 156px;
+  padding: 16px;
+  border-color: #e7edf6;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(28, 72, 122, 0.06);
+}
+
+.overview-panel :deep(.card:hover) {
+  border-color: #b9d7ff;
+  box-shadow: 0 10px 24px rgba(28, 72, 122, 0.1);
+  transform: translateY(-1px);
+}
+
+.overview-panel :deep(.title) {
+  font-size: 15px;
+  color: #10243e;
+}
+
+.overview-panel :deep(.meta) {
+  color: #667085;
+}
+
+.overview-panel :deep(.more) {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+.overview-panel :deep(.more:hover) {
+  background: #f2f7ff;
+}
+
+.overview-panel :deep(.tag) {
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.overview-panel :deep(.dl-btn) {
+  color: #1677ff;
+  background: #f2f7ff;
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+@media (max-width: 820px) {
+  .overview-panel .stats-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-panel .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .panel.tab-panel.overview-panel {
+    padding: 14px;
+  }
+
+  .overview-panel .stats-strip {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1000px) {
@@ -1799,14 +2121,14 @@ const donutSegments = computed(() => {
 
 .ops-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
 
 @media (max-width: 900px) {
   .ops-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 }
 

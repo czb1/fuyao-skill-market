@@ -71,13 +71,18 @@ function approve(skillId: string): void {
 
 <style scoped>
 .admin-shell {
-  padding: 0 24px 32px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0 clamp(16px, 2vw, 32px) 32px;
+  box-sizing: border-box;
 }
 
 .hero {
   margin-top: 16px;
+  width: 100%;
+  box-sizing: border-box;
   border-radius: 8px;
   padding: 28px 32px;
   border: 1px solid #d6e4ff;

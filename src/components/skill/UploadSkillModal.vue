@@ -12,11 +12,11 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [v: boolean];
-  submit: [payload: { name: string; publisher: string; note: string }];
+  submit: [payload: { name: string; userId: string; note: string }];
 }>();
 
 const name = ref('');
-const publisher = ref('当前用户');
+const userId = ref('');
 const note = ref('');
 
 watch(
@@ -26,7 +26,7 @@ watch(
       return;
     }
     name.value = '';
-    publisher.value = '当前用户';
+    userId.value = '当前用户';
     note.value = '';
   },
 );
@@ -42,7 +42,7 @@ function onOverlayClick(): void {
 function onSubmit(): void {
   emit('submit', {
     name: name.value,
-    publisher: publisher.value,
+    publisher: userId.value,
     note: note.value,
   });
   close();
@@ -63,10 +63,6 @@ function onSubmit(): void {
         <div class="field">
           <label for="sk-name">Skill 名称</label>
           <input id="sk-name" v-model="name" type="text" placeholder="例如：Java 代码 Review 助手" />
-        </div>
-        <div class="field">
-          <label for="sk-pub">维护方 / 发布人</label>
-          <input id="sk-pub" v-model="publisher" type="text" />
         </div>
         <div class="field">
           <label for="sk-note">版本说明（可选）</label>
