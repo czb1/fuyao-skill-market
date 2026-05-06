@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SkillCard from '../../components/skill/SkillCard.vue';
 import UploadSkillModal from '../../components/skill/UploadSkillModal.vue';
@@ -110,6 +110,8 @@ const orgListLoading = ref(false);
 /** `fetchDepartmentsTree` 映射后的森林；成功则级联以全量部门为准，否则回退为当前列表推导 */
 const marketOverviewDeptTreeFromApi = ref(null);
 const marketOverviewDeptTreeLoading = ref(false);
+/** `App.vue` 对父页面 `postMessage` 的 `departmentList` 的 provide（同一 Ref，随消息更新） */
+const departmentListFromParent = inject('departmentList');
 const orgModalOpen = ref(false);
 const orgModalMode = ref('create');
 const orgForm = ref({
@@ -1006,6 +1008,17 @@ async function loadAdminOrganizations() {
         orgListLoading.value = false;
     }
 }
+function applyInjectedDepartmentTreeIfAny() {
+    const holder = departmentListFromParent;
+    if (!holder) {
+        return;
+    }
+    const raw = holder.value;
+    if (!Array.isArray(raw) || raw.length === 0) {
+        return;
+    }
+    marketOverviewDeptTreeFromApi.value = mapDepartmentTreeDtoToForest(raw);
+}
 async function loadMarketDepartmentsTreeForOverview() {
     marketOverviewDeptTreeLoading.value = true;
     try {
@@ -1016,11 +1029,15 @@ async function loadMarketDepartmentsTreeForOverview() {
         else {
             marketOverviewDeptTreeFromApi.value = null;
         }
+        applyInjectedDepartmentTreeIfAny();
     }
     finally {
         marketOverviewDeptTreeLoading.value = false;
     }
 }
+watch(() => departmentListFromParent?.value, () => {
+    applyInjectedDepartmentTreeIfAny();
+}, { deep: true, immediate: true, });
 async function loadSyncApplicationRows() {
     syncListLoading.value = true;
     try {
