@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import type { Ref } from 'vue';
 import type {
   Skill,
@@ -85,22 +85,45 @@ function currentInjectedUserId(userId?: Ref<string>): string {
   return String(userId?.value ?? '').trim();
 }
 
-function appendUserIdToSkillsParams(path: string, userId?: Ref<string>): string {
+function waitForInjectedUserId(userId?: Ref<string>): Promise<string> {
+  const current = currentInjectedUserId(userId);
+  if (current) {
+    return Promise.resolve(current);
+  }
+  if (!userId) {
+    return Promise.resolve('');
+  }
+  return new Promise((resolve) => {
+    const stop = watch(
+      userId,
+      (next) => {
+        const normalized = String(next ?? '').trim();
+        if (!normalized) {
+          return;
+        }
+        stop();
+        resolve(normalized);
+      },
+      { flush: 'sync' },
+    );
+  });
+}
+
+function appendUserIdToSkillsParams(path: string, injectedUserId: string): string {
   if (!isSkillsApiPath(path)) {
     return path;
   }
   const [pathOnly, query = ''] = path.split('?');
   const sp = new URLSearchParams(query);
-  sp.set('userId', currentInjectedUserId(userId));
+  sp.set('userId', injectedUserId);
   const q = sp.toString();
   return q ? `${pathOnly}?${q}` : pathOnly;
 }
 
-function addUserIdToSkillsJsonBody(path: string, body: unknown, userId?: Ref<string>): unknown {
+function addUserIdToSkillsJsonBody(path: string, body: unknown, injectedUserId: string): unknown {
   if (!isSkillsApiPath(path)) {
     return body;
   }
-  const injectedUserId = currentInjectedUserId(userId);
   if (body && typeof body === 'object' && !Array.isArray(body)) {
     return {
       ...(body as Record<string, unknown>),
@@ -110,9 +133,9 @@ function addUserIdToSkillsJsonBody(path: string, body: unknown, userId?: Ref<str
   return { userId: injectedUserId };
 }
 
-function addUserIdToSkillsForm(path: string, form: FormData, userId?: Ref<string>): FormData {
+function addUserIdToSkillsForm(path: string, form: FormData, injectedUserId: string): FormData {
   if (isSkillsApiPath(path)) {
-    form.set('userId', currentInjectedUserId(userId));
+    form.set('userId', injectedUserId);
   }
   return form;
 }
@@ -143,37 +166,41 @@ export function createSkillMarketHttpClient(
   const skills = ref<Skill[]>([]);
 
   async function get<T>(path: string): Promise<ApiEnvelope<T>> {
-    const res = await fetch(joinBaseUrl(baseUrl, appendUserIdToSkillsParams(path, userId)), {
+    const injectedUserId = isSkillsApiPath(path) ? await waitForInjectedUserId(userId) : '';
+    const res = await fetch(joinBaseUrl(baseUrl, appendUserIdToSkillsParams(path, injectedUserId)), {
       credentials: 'include',
     });
     return readJsonEnvelope<T>(res);
   }
 
   async function postJson<T>(path: string, body: unknown): Promise<ApiEnvelope<T>> {
+    const injectedUserId = isSkillsApiPath(path) ? await waitForInjectedUserId(userId) : '';
     const res = await fetch(joinBaseUrl(baseUrl, path), {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(addUserIdToSkillsJsonBody(path, body, userId)),
+      body: JSON.stringify(addUserIdToSkillsJsonBody(path, body, injectedUserId)),
     });
     return readJsonEnvelope<T>(res);
   }
 
   async function putJson<T>(path: string, body: unknown): Promise<ApiEnvelope<T>> {
+    const injectedUserId = isSkillsApiPath(path) ? await waitForInjectedUserId(userId) : '';
     const res = await fetch(joinBaseUrl(baseUrl, path), {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(addUserIdToSkillsJsonBody(path, body, userId)),
+      body: JSON.stringify(addUserIdToSkillsJsonBody(path, body, injectedUserId)),
     });
     return readJsonEnvelope<T>(res);
   }
 
   async function postForm<T>(path: string, form: FormData): Promise<ApiEnvelope<T>> {
+    const injectedUserId = isSkillsApiPath(path) ? await waitForInjectedUserId(userId) : '';
     const res = await fetch(joinBaseUrl(baseUrl, path), {
       method: 'POST',
       credentials: 'include',
-      body: addUserIdToSkillsForm(path, form, userId),
+      body: addUserIdToSkillsForm(path, form, injectedUserId),
     });
     return readJsonEnvelope<T>(res);
   }
