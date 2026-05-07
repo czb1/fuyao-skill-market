@@ -688,7 +688,7 @@ function updateMarketStatsFromSkills(list: Skill[], total = list.length): void {
 
 async function loadCurrentUserRole(): Promise<void> {
   try {
-    const r = await skillBaseService.queryCurrentUserRole();
+    const r = await skillBaseService.queryCurrentUserRole({userId: userId.value});
     if (r.code === 0 && r.data) {
       currentUserRole.value = r.data;
     }
@@ -838,9 +838,9 @@ async function startOverviewRemoteFetch(): Promise<void> {
 function buildOverviewSkillListParams(pageNo: number, fetchSize: number): SkillListParamsDto {
   const params: SkillListParamsDto = {
     userId: userId.value,
-    pageNo,
+    pageNum: pageNo,
     pageSize: fetchSize,
-    keyword: search.value.trim() || undefined,
+    keyword: search.value.trim() || '',
   };
   const scope = toListScope(quickFilter.value);
   if (scope === 'personal') {
@@ -1474,6 +1474,45 @@ function skillTagSummary(skill: Skill): string {
     .join(' ');
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function firstPresent(...values: unknown[]): unknown {
+  return values.find((value) => value !== undefined && value !== null);
+}
+
+function readBool(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'success'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'fail', 'failed'].includes(normalized)) return false;
+  }
+  return undefined;
+}
+
+function readText(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => readText(item)).filter(Boolean).join(' ');
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return '';
+}
+
 async function parseSkillArchiveForUpload(file: File): Promise<{
   duplicate: boolean;
   meta: {
@@ -1487,26 +1526,41 @@ async function parseSkillArchiveForUpload(file: File): Promise<{
     level: string;
   };
 }> {
-  // const env = await marketClient.postSkillUploadParse(file);
   const formData = new FormData();
   formData.append('file', file);
   const env = await skillBaseService.parseSkillPackage(formData);
-  if (env.code !== 0) {
-    throw new Error(env.message || '解析失败');
+  const root = asRecord(env);
+  const data = asRecord(root.data);
+  const topMeta = asRecord(root.meta);
+  const dataMeta = asRecord(data.meta);
+  const meta = Object.keys(dataMeta).length > 0
+    ? dataMeta
+    : Object.keys(topMeta).length > 0
+      ? topMeta
+      : data;
+  const metaData = asRecord(meta.data);
+  const parsedMeta = Object.keys(metaData).length > 0 ? metaData : meta;
+  const metadata = asRecord(firstPresent(parsedMeta.metadata, data.metadata, topMeta.metadata));
+  const success = readBool(firstPresent(dataMeta.success, topMeta.success, data.success, parsedMeta.success));
+  const code = root.code;
+  const codeSuccess = code === undefined || code === 0 || code === 200 || code === '0' || code === '200';
+  if (success === false || (success !== true && !codeSuccess)) {
+    throw new Error(
+      readText(firstPresent(parsedMeta.message, data.message, topMeta.message, root.message)) || '解析失败',
+    );
   }
-  const d = env.data;
-  const tags = Array.isArray(d.tags) ? d.tags.join(' ') : String(d.tags ?? '');
+  const tags = readText(firstPresent(metadata.tags, parsedMeta.tags, data.tags));
   return {
-    duplicate: Boolean(d.nameExists),
+    duplicate: readBool(firstPresent(parsedMeta.nameExists, data.nameExists, topMeta.nameExists)) ?? false,
     meta: {
-      name: d.name,
-      version: d.version,
-      description: d.description,
-      author: d.author,
-      category: d.category,
-      requirements: d.requirements ?? '',
+      name: readText(firstPresent(parsedMeta.name, data.name)),
+      version: readText(firstPresent(metadata.version, parsedMeta.version, data.version)),
+      description: readText(firstPresent(parsedMeta.description, data.description)),
+      author: readText(firstPresent(metadata.author, parsedMeta.author, data.author)),
+      category: readText(firstPresent(metadata.category, parsedMeta.category, data.category)),
+      requirements: readText(firstPresent(parsedMeta.requirements, metadata.requirements, data.requirements)),
       tags,
-      level: d.level ?? '个人级（默认发布，无需审核）',
+      level: readText(firstPresent(parsedMeta.level, data.level)) || '个人级（默认发布，无需审核）',
     },
   };
 }

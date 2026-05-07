@@ -74,7 +74,7 @@ export type SkillListParamsDto = {
   badge?: string;
   scored?: boolean;
   minRating?: number;
-  pageNo: number;
+  pageNum: number;
   pageSize: number;
 };
 
