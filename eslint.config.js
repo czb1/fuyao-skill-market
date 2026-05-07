@@ -1,5 +1,6 @@
 ﻿import vuePlugin from 'eslint-plugin-vue';
 import vueParser from 'vue-eslint-parser';
+import tsParser from '@typescript-eslint/parser';
 import prettierConfig from 'eslint-config-prettier';
 
 const commonRules = {
@@ -19,6 +20,7 @@ export default [
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
+      parser: tsParser,
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
