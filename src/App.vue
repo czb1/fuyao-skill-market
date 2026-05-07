@@ -2,9 +2,9 @@
 import { onBeforeUnmount } from 'vue';
 import { RouterView } from 'vue-router';
 
-import { useAppContextStore } from './stores/appContextStore';
+import { useSkillMarketStore } from './stores/skillMarketStore';
 
-const appContextStore = useAppContextStore();
+const skillMarketStore = useSkillMarketStore();
 
 function handleEvent(event: MessageEvent): void {
   const payload = event.data;
@@ -15,8 +15,11 @@ function handleEvent(event: MessageEvent): void {
   if (p.type !== 'init') {
     return;
   }
-
-  appContextStore.applyInitPayload(p);
+  skillMarketStore.updateUserId(p.userId as string);
+  try {
+    const list = JSON.parse(p.departmentListStr as string);
+    skillMarketStore.updateDept(list);
+  } catch (error) {}
 }
 
 window.addEventListener('message', handleEvent);

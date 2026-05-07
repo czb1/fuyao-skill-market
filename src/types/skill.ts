@@ -89,6 +89,7 @@ export interface SkillListQuery {
   page?: number;
   pageSize?: number;
   scope?: SkillMarketScope;
+  userId?: string;
 }
 
 export interface SkillListResponse {

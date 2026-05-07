@@ -5,8 +5,6 @@ import type { CSSProperties } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SkillCard from '../../components/skill/SkillCard.vue';
 import UploadSkillModal from '../../components/skill/UploadSkillModal.vue';
-import { useAppContextStore } from '../../stores/appContextStore';
-import { useSkillMarketStore } from '../../stores/skillMarketStore';
 import type {
   OrganizationDto,
   SkillDownloadSourcePage,
@@ -39,23 +37,21 @@ import {
   type OpsSkillDetailRow,
 } from '../../utils/opsExcelImport';
 import { buildOpsDashboardBundle, parseOpsExcelBuffer } from '../../utils/opsExcelImport';
+import { skillBaseService } from '../../services/skillMarket/skillBaseService';
 
-const store = useSkillMarketStore();
-const appContextStore = useAppContextStore();
-const { departmentList } = storeToRefs(appContextStore);
-const {
-  skills,
-  myPublishedSkills,
-  totalDownloads,
-  totalSkills,
-  downloadsLast30Days,
-  orgCount,
-  currentUserRole,
-} = storeToRefs(store);
-const {
-  refreshMyPublishedSkills,
-  marketClient,
-} = store;
+import { useSkillMarketStore } from '../../stores/skillMarketStore';
+const skillMarketStore = useSkillMarketStore();
+const userId = computed(() => skillMarketStore.userId);
+const departmentList = computed(() => skillMarketStore.departmentList);
+
+const skills = ref([]);
+const myPublishedSkills = ref([]);
+const totalDownloads = ref(0);
+const totalSkills = ref(0);
+const downloadsLast30Days = ref(0);
+const orgCount = ref(0);
+const currentUserRole = ref(null);
+const marketClient = null;
 
 const transportIsHttp = import.meta.env.VITE_SKILL_MARKET_TRANSPORT === 'http';
 const route = useRoute();
@@ -1174,7 +1170,14 @@ watch(
       void loadSyncApplicationRows();
     }
     if (tab === 'releases') {
-      void refreshMyPublishedSkills();
+      // void refreshMyPublishedSkills();
+      skillBaseService.queryMySkills({
+        pageNo: 1,
+        pageSize: 10,
+        userId: skillMarketStore.userId,
+      }).then((res) => {
+        myPublishedSkills.value = res.data;
+      });
     }
     syncTabPanelMinHeight();
   },
@@ -1413,7 +1416,7 @@ async function onUploadSubmit(payload: SkillUploadPayload): Promise<void> {
     if (transportIsHttp) {
       void startOverviewRemoteFetch();
     }
-    await refreshMyPublishedSkills();
+    // await refreshMyPublishedSkills();
     showToast(
       result.created
         ? `已发布新 Skill「${result.skill.name}」v${result.skill.version}`

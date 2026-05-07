@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
-import { useSkillMarketStore } from '../../stores/skillMarketStore';
 
-const store = useSkillMarketStore();
-const { skills } = storeToRefs(store);
-const { marketClient } = store;
+const skills = ref([]);
+const marketClient = null;
 
 const toast = ref('');
 
@@ -60,7 +57,7 @@ async function approve(skillId: string): Promise<void> {
       <h2 class="panel-title">全市场 Skill 列表</h2>
       <p class="panel-help">操作列提供「批准上架到组织层」：将调用 <code>POST /api/sync-applications/:id/review</code>（见 <code>endpoints.ts</code>）。</p>
       <div class="table-wrap">
-        <table class="table">
+        <!-- <table class="table">
           <thead>
             <tr>
               <th>名称</th>
@@ -88,7 +85,7 @@ async function approve(skillId: string): Promise<void> {
               </td>
             </tr>
           </tbody>
-        </table>
+        </table> -->
       </div>
     </div>
 
