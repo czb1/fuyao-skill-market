@@ -18,6 +18,12 @@ type ParsedSkillMeta = {
   level: string;
 };
 
+type VersionUpgradeMeta = {
+  name: string;
+  existingVersion: string;
+  nextVersion: string;
+};
+
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
@@ -26,6 +32,7 @@ const props = withDefaults(
       duplicate?: boolean;
       canSubmit?: boolean;
       warnings?: string[];
+      versionUpgrade?: VersionUpgradeMeta;
       meta: ParsedSkillMeta;
     }>;
   }>(),
@@ -36,7 +43,17 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [v: boolean];
-  submit: [payload: { name: string; publisher: string; note: string; file: File | null; scopeLabel?: string; tagFunctional?: string }];
+  submit: [payload: {
+    name: string;
+    publisher: string;
+    note: string;
+    file: File | null;
+    scopeLabel?: string;
+    tagFunctional?: string;
+    version?: string;
+    versionUpgrade?: boolean;
+    existingVersion?: string;
+  }];
 }>();
 
 const note = ref('');
@@ -44,6 +61,7 @@ const file = ref<File | null>(null);
 const parsed = ref<ParsedSkillMeta | null>(null);
 const parseState = ref<'idle' | 'success' | 'warning' | 'duplicate'>('idle');
 const parseWarnings = ref<string[]>([]);
+const versionUpgrade = ref<VersionUpgradeMeta | null>(null);
 const parsing = ref(false);
 const uploading = ref(false);
 const parseError = ref('');
@@ -59,10 +77,13 @@ const parseNotice = computed(() => {
     return '解析完成，但存在 warnings，请处理后重新选择文件。';
   }
   if (parseState.value === 'success') {
+    if (versionUpgrade.value) {
+      return `检测到同名 Skill，解析版本 ${versionUpgrade.value.nextVersion} 大于当前版本 ${versionUpgrade.value.existingVersion}，将作为新版本迭代上传并保留历史版本。`;
+    }
     return '解析成功：已从 SKILL.md Front Matter 中解析基础信息和 metadata，必填项完整，名称未重名。';
   }
   if (parseState.value === 'duplicate') {
-    return '有重名的 Skill：市场内已存在同名 Skill。请修改 SKILL.md Front Matter 中的 name 后重新上传；如果你是维护人，请从“我的发布”进入“上传新版本”。';
+    return '有重名的 Skill：市场内已存在同名 Skill。如需作为版本迭代上传，请确保 SKILL.md 中的 version 大于当前已有版本。';
   }
   if (parsing.value) {
     return '正在请求后端解析压缩包…';
@@ -88,6 +109,7 @@ function reset(): void {
   parsed.value = null;
   parseState.value = 'idle';
   parseWarnings.value = [];
+  versionUpgrade.value = null;
   parsing.value = false;
   uploading.value = false;
   parseError.value = '';
@@ -157,6 +179,7 @@ async function onFileChange(event: Event): Promise<void> {
   file.value = input.files?.[0] ?? null;
   parseError.value = '';
   parseWarnings.value = [];
+  versionUpgrade.value = null;
   parsed.value = null;
   parseState.value = 'idle';
   if (!file.value) {
@@ -172,11 +195,12 @@ async function onFileChange(event: Event): Promise<void> {
         parseState.value = 'warning';
         return;
       }
-      if (r.canSubmit === false || r.duplicate) {
+      if (r.canSubmit === false || (r.canSubmit !== true && r.duplicate)) {
         parseState.value = 'duplicate';
         return;
       }
       parsed.value = r.meta;
+      versionUpgrade.value = r.versionUpgrade ?? null;
       parseState.value = 'success';
     } catch (e) {
       parseError.value = e instanceof Error ? e.message : '解析请求失败';
@@ -219,6 +243,9 @@ const onSubmit = async (): Promise<void> => {
       file: file.value,
       scopeLabel: '个人级',
       tagFunctional: parsed.value.category,
+      version: parsed.value.version,
+      versionUpgrade: Boolean(versionUpgrade.value),
+      existingVersion: versionUpgrade.value?.existingVersion,
     });
     close();
   } catch (e) {

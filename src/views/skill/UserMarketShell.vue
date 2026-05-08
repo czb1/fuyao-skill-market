@@ -25,6 +25,8 @@ import {
 } from '../../services/skillMarket/marketDeptTreeFromApi';
 import { joinBaseUrl } from '../../services/skillMarket/httpJson';
 import {
+  marketRoleIsOrgAdmin,
+  marketRoleIsSuperAdmin,
   marketRoleCanCreateOrganization,
   marketRoleShowsOpsAndReview,
   marketRoleShowsOrgManagement,
@@ -33,6 +35,8 @@ import type {
   OverviewQuickFilter,
   Skill,
   SkillMarketScope,
+  SkillUploadPayload,
+  SkillVersionEntry,
   UserInnerTab,
 } from '../../types/skill';
 import { emptyOpsDashboardBundle } from '../../services/skillMarket/mock/opsDashboardUiDefaults';
@@ -751,6 +755,9 @@ onMounted(async () => {
   if (transportIsHttp && innerTab.value === 'overview') {
     void startOverviewRemoteFetch();
   }
+  if (innerTab.value === 'releases') {
+    void loadMyPublishedSkills();
+  }
   void loadOpsDashboardOverview();
   scheduleMaybeFillOverviewViewport();
   document.addEventListener('mousedown', onMarketDeptCascaderDocDown);
@@ -1174,10 +1181,10 @@ function canEditOrganization(org: OrganizationDto): boolean {
   if (!role) {
     return false;
   }
-  if (role.role === 'SUPER_ADMIN') {
+  if (marketRoleIsSuperAdmin(role)) {
     return true;
   }
-  if (role.role === 'ORG_ADMIN') {
+  if (marketRoleIsOrgAdmin(role)) {
     return role.managedOrgIds.includes(org.id);
   }
   return false;
@@ -1232,9 +1239,12 @@ async function loadMyPublishedSkills(): Promise<void> {
     return;
   }
   const records = (res.data.records ?? []) as SkillListRecordDto[];
-  const mapped = records.map((row) => apiMyRecordToSkill(row));
+  const previous = [...myPublishedSkills.value, ...skills.value];
+  const mapped = records
+    .map((row) => apiMyRecordToSkill(row))
+    .map((skill) => mergeSkillVersionHistory(skill, findExistingSkillByName(skillTitle(skill), previous)));
   myPublishedSkills.value = mapped;
-  skills.value = mergeOverviewSkillsById(skills.value, mapped);
+  skills.value = upsertSkillsPreservingVersions(skills.value, mapped);
 }
 
 watch(
@@ -1400,6 +1410,102 @@ function skillVersion(skill: Skill): string {
   return skill.version ?? '1.0.0';
 }
 
+function normalizeSkillName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function skillVersionParts(version: string): Array<number | string> {
+  return version
+    .trim()
+    .replace(/^v/i, '')
+    .split(/[.-]/)
+    .filter(Boolean)
+    .map((part) => (/^\d+$/.test(part) ? Number(part) : part.toLowerCase()));
+}
+
+function compareVersions(left: string, right: string): number {
+  const a = skillVersionParts(left);
+  const b = skillVersionParts(right);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    if (av === bv) {
+      continue;
+    }
+    if (typeof av === 'number' && typeof bv === 'number') {
+      return av > bv ? 1 : -1;
+    }
+    if (typeof av === 'number') {
+      return 1;
+    }
+    if (typeof bv === 'number') {
+      return -1;
+    }
+    const compared = String(av).localeCompare(String(bv), 'en');
+    if (compared !== 0) {
+      return compared > 0 ? 1 : -1;
+    }
+  }
+  return 0;
+}
+
+function findExistingSkillByName(name: string, source?: Skill[]): Skill | undefined {
+  const key = normalizeSkillName(name);
+  const pool = source ?? [
+    ...myPublishedSkills.value,
+    ...skills.value,
+    ...overviewRemoteItems.value,
+  ];
+  return pool.find((skill) => normalizeSkillName(skillTitle(skill)) === key);
+}
+
+function fallbackVersionEntry(skill: Skill): SkillVersionEntry {
+  const version = skillVersion(skill);
+  return {
+    version,
+    publishTime: skill.latestPublishTime ?? '',
+    packageFileName: `${skillTitle(skill)}-v${version}.zip`,
+  };
+}
+
+function mergeSkillVersionHistory(next: Skill, previous?: Skill): Skill {
+  const entries = [
+    ...(previous?.versions ?? []),
+    ...(previous ? [fallbackVersionEntry(previous)] : []),
+    ...(next.versions ?? []),
+    fallbackVersionEntry(next),
+  ];
+  const byVersion = new Map<string, SkillVersionEntry>();
+  for (const entry of entries) {
+    const version = entry.version.trim();
+    if (!version) {
+      continue;
+    }
+    byVersion.set(version, { ...byVersion.get(version), ...entry, version });
+  }
+  const versions = [...byVersion.values()].sort((a, b) => compareVersions(a.version, b.version));
+  return { ...next, versions };
+}
+
+function upsertSkillsPreservingVersions(prev: Skill[], batch: Skill[]): Skill[] {
+  const out = [...prev];
+  for (const skill of batch) {
+    const skillId = skill.id ? String(skill.id) : '';
+    const skillName = normalizeSkillName(skillTitle(skill));
+    const index = out.findIndex((item) => {
+      const itemId = item.id ? String(item.id) : '';
+      return (skillId && itemId === skillId) || normalizeSkillName(skillTitle(item)) === skillName;
+    });
+    if (index >= 0) {
+      out[index] = mergeSkillVersionHistory(skill, out[index]);
+    } else {
+      out.push(skill);
+    }
+  }
+  return out;
+}
+
 function skillAuthor(skill: Skill): string {
   const raw = skill.owner_list?.trim();
   if (raw) {
@@ -1537,10 +1643,26 @@ function readWarningMessages(...sources: unknown[]): string[] {
     .filter(Boolean);
 }
 
+async function ensureMyPublishedSkillsForVersionCheck(hasExistingName: boolean): Promise<void> {
+  if (!hasExistingName || !transportIsHttp || myPublishedSkills.value.length > 0) {
+    return;
+  }
+  try {
+    await loadMyPublishedSkills();
+  } catch {
+    // 版本比较仍可使用已加载的市场列表；刷新失败时保持解析流程可继续给出拦截提示。
+  }
+}
+
 async function parseSkillArchiveForUpload(file: File): Promise<{
   duplicate?: boolean;
   canSubmit?: boolean;
   warnings?: string[];
+  versionUpgrade?: {
+    name: string;
+    existingVersion: string;
+    nextVersion: string;
+  };
   meta: {
     name: string;
     version: string;
@@ -1585,15 +1707,31 @@ async function parseSkillArchiveForUpload(file: File): Promise<{
   const canSubmit = readBool(
     firstPresent(parsedMeta.canSubmit, data.canSubmit, topMeta.canSubmit, root.canSubmit),
   );
-  const duplicate = canSubmit === false
-    || (readBool(firstPresent(parsedMeta.nameExists, data.nameExists, topMeta.nameExists)) ?? false);
+  const name = readText(firstPresent(parsedMeta.name, data.name));
+  const version = readText(firstPresent(metadata.version, parsedMeta.version, data.version));
+  const backendNameExists =
+    readBool(firstPresent(parsedMeta.nameExists, data.nameExists, topMeta.nameExists)) ?? false;
+  await ensureMyPublishedSkillsForVersionCheck(backendNameExists || canSubmit === false);
+  const existingSkill = name ? findExistingSkillByName(name) : undefined;
+  const existingVersion = existingSkill ? skillVersion(existingSkill) : '';
+  const versionUpgrade =
+    Boolean(existingSkill && version && compareVersions(version, existingVersion) > 0);
+  const hasExistingName = Boolean(existingSkill) || backendNameExists || canSubmit === false;
+  const duplicate = hasExistingName && !versionUpgrade;
   return {
     duplicate,
-    canSubmit: canSubmit ?? !duplicate,
+    canSubmit: !duplicate,
     warnings,
+    versionUpgrade: versionUpgrade
+      ? {
+          name,
+          existingVersion,
+          nextVersion: version,
+        }
+      : undefined,
     meta: {
-      name: readText(firstPresent(parsedMeta.name, data.name)),
-      version: readText(firstPresent(metadata.version, parsedMeta.version, data.version)),
+      name,
+      version,
       description: readText(firstPresent(parsedMeta.description, data.description)),
       author: readText(firstPresent(metadata.author, parsedMeta.author, data.author)),
       category: readText(firstPresent(metadata.category, parsedMeta.category, data.category)),
@@ -1604,24 +1742,28 @@ async function parseSkillArchiveForUpload(file: File): Promise<{
   };
 }
 
-// async function onUploadSubmit(payload: SkillUploadPayload): Promise<void> {
-//   try {
-//     const result = await store.uploadSkill(payload);
-//     overviewVisibleCount.value = pageSize.value;
-//     if (transportIsHttp) {
-//       void startOverviewRemoteFetch();
-//     }
-//     // await refreshMyPublishedSkills();
-//     showToast(
-//       result.created
-//         ? `已发布新 Skill「${result.skill.name}」v${result.skill.version}`
-//         : `同名 Skill 已更新为 v${result.skill.version}（版本追加）`,
-//       4000,
-//     );
-//   } catch (e) {
-//     showToast(e instanceof Error ? e.message : '上传失败');
-//   }
-// }
+type UploadSubmitPayload = SkillUploadPayload & {
+  version?: string;
+  versionUpgrade?: boolean;
+  existingVersion?: string;
+};
+
+async function onUploadSubmit(payload: UploadSubmitPayload): Promise<void> {
+  const versionText = payload.version ? ` v${payload.version}` : '';
+  const message =
+    payload.versionUpgrade && payload.existingVersion
+      ? `已上传「${payload.name}」${versionText}，原版本 v${payload.existingVersion} 已保留`
+      : `已上传新 Skill「${payload.name}」${versionText}`;
+  try {
+    await loadMyPublishedSkills();
+    if (transportIsHttp && overviewRemoteItems.value.length > 0) {
+      void startOverviewRemoteFetch();
+    }
+    showToast(message, 4000);
+  } catch (e) {
+    showToast(e instanceof Error ? `上传成功，但我的发布刷新失败：${e.message}` : '上传成功，但我的发布刷新失败', 4000);
+  }
+}
 
 function patchSkillsDownloadCountAfterDownload(id: string, skill: Skill): void {
   const dl = skill.download_count ?? skill.downloads ?? 0;
@@ -1902,6 +2044,21 @@ function releaseSyncActionText(row: { skill: Skill; statusKey: ReleaseStatusKey;
   return '同步至公司组织';
 }
 
+function releaseVersionCount(skill: Skill): number {
+  const versions = new Set((skill.versions ?? []).map((item) => item.version).filter(Boolean));
+  versions.add(skillVersion(skill));
+  return versions.size;
+}
+
+function releaseVersionSubText(skill: Skill): string {
+  const publishTime = skill.latestPublishTime ?? '';
+  const count = releaseVersionCount(skill);
+  if (count <= 1) {
+    return publishTime;
+  }
+  return publishTime ? `保留 ${count} 个版本 · ${publishTime}` : `保留 ${count} 个版本`;
+}
+
 function onReleaseNewVersion(row: { skill: Skill }): void {
   toastAction(`新版本（演示）：为「${skillTitle(row.skill)}」追加版本`);
   openUpload();
@@ -1913,7 +2070,7 @@ function onReleaseSync(row: { skill: Skill; statusKey: ReleaseStatusKey; persona
 }
 
 function onReleaseRecord(row: { skill: Skill }): void {
-  toastAction(`记录（演示）：查看「${skillTitle(row.skill)}」操作记录`);
+  versionPanelSkill.value = row.skill;
 }
 
 const myReleaseRows = computed(() => {
@@ -2293,6 +2450,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
     <UploadSkillModal
       v-model="uploadOpen"
       :parse-skill-archive="parseSkillArchiveForUpload"
+      @submit="onUploadSubmit"
     />
 
     <Teleport to="body">
@@ -2887,7 +3045,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                 </td>
                 <td>
                   <div class="cell-main">{{ row.skill.version }}</div>
-                  <div class="cell-sub">{{ row.skill.latestPublishTime }}</div>
+                  <div class="cell-sub">{{ releaseVersionSubText(row.skill) }}</div>
                 </td>
                 <td>
                   <span class="st" :class="`st-${row.statusKey}`">{{ row.statusLabel }}</span>

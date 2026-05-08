@@ -10,9 +10,20 @@ export function parseUserMarketRole(value: unknown): UserMarketRole | null {
   return null;
 }
 
+function roleFlagIsTrue(value: unknown): boolean {
+  return value === true || value === 1 || (typeof value === 'string' && ['1', 'true'].includes(value.trim().toLowerCase()));
+}
+
+export function marketRoleIsSuperAdmin(role: CurrentUserRoleDto | null): boolean {
+  return role?.role === 'SUPER_ADMIN' || roleFlagIsTrue(role?.superAdmin);
+}
+
+export function marketRoleIsOrgAdmin(role: CurrentUserRoleDto | null): boolean {
+  return role?.role === 'ORG_ADMIN' || roleFlagIsTrue(role?.orgAdmin);
+}
+
 export function marketRoleShowsAdminPerspective(role: CurrentUserRoleDto | null): boolean {
-  const r = role?.role;
-  return r === 'SUPER_ADMIN' || r === 'ORG_ADMIN';
+  return marketRoleIsSuperAdmin(role) || marketRoleIsOrgAdmin(role);
 }
 
 /** 组织管理入口：超级管理员与普通管理员 */
@@ -22,12 +33,12 @@ export function marketRoleShowsOrgManagement(role: CurrentUserRoleDto | null): b
 
 /** 超级管理员配置入口：仅 SUPER_ADMIN */
 export function marketRoleShowsSuperAdminSettings(role: CurrentUserRoleDto | null): boolean {
-  return role?.role === 'SUPER_ADMIN';
+  return marketRoleIsSuperAdmin(role);
 }
 
 /** 组织列表「新增组织」按钮 */
 export function marketRoleCanCreateOrganization(role: CurrentUserRoleDto | null): boolean {
-  return role?.role === 'SUPER_ADMIN';
+  return marketRoleIsSuperAdmin(role);
 }
 
 /**

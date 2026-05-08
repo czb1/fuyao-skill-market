@@ -12,6 +12,8 @@ export {
   uploadResultDtoToSkill,
 } from './mappers';
 export {
+  marketRoleIsOrgAdmin,
+  marketRoleIsSuperAdmin,
   marketRoleCanCreateOrganization,
   marketRoleShowsAdminPerspective,
   marketRoleShowsOpsAndReview,
