@@ -21,7 +21,6 @@ export const skillBaseService = {
             method: 'post',
             data: formData,
             params: params,
-            withCredentials: true,
             headers: {
                 'Content-Type': 'multipart/form-data',
             }
@@ -30,11 +29,10 @@ export const skillBaseService = {
 
     // storage file上传接口
     uploadStorageFile: (formData: FormData): any => {
-        return httpRequest.resource<any>({
-            url: '/v1/storage/file',
+        return httpRequest.fuyao<any>({
+            url: '/resource/resource-management/v1/storage/file',
             method: 'post',
             data: formData,
-            withCredentials: true,
             headers: {
                 'Content-Type': 'multipart/form-data',
             }

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { AxiosRequestConfig } from 'axios';
 
-const fuyao = '/fuyaoDomain'
+const fuyao = import.meta.env.VITE_FUYAO_API_BASE || '/fuyaoDomain'
 
 function isSuccessStatus(status: number): boolean {
     return status >= 200 && status < 300;
@@ -9,8 +9,7 @@ function isSuccessStatus(status: number): boolean {
 
 const createAxiosConfig = {
     baseURL: '',
-    timeout: 50000,
-    withCredentials: true,
+    timeout: 50000
 }
 
 const axiosRequest = axios.create(createAxiosConfig);
@@ -57,9 +56,8 @@ function buildBaseUrl(prefix: '/api' | '/api/skills'): string {
     return `${base}${prefix}`;
 }
 
-function buildResourceBaseUrl(): string {
-    const base = fuyao.replace(/\/+$/, '') + '/resource/resource-management';
-    return base;
+function buildFuyaoBaseUrl(): string {
+    return fuyao.replace(/\/+$/, '');
 }
 
 function stripPrefix(url: unknown, prefix: string): string {
@@ -92,11 +90,11 @@ const httpRequest = {
             url: stripPrefix(config.url, '/api/skills'),
         })
     },
-    resource: <T = null>(config: AxiosRequestConfig): Promise<T> => {
+    fuyao: <T = null>(config: AxiosRequestConfig): Promise<T> => {
         return axiosRequest.request<T, T>({
             ...config,
-            baseURL: buildResourceBaseUrl(),
-            url: stripPrefix(config.url, '/resource/resource-management'),
+            baseURL: buildFuyaoBaseUrl(),
+            url: stripPrefix(config.url, ''),
         })
     }
 }
