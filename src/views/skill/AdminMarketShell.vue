@@ -21,8 +21,8 @@ async function loadSkills(): Promise<void> {
     pageNo: 1,
     pageSize: 50,
   });
-  if (r.meta.success && r.data?.records) {
-    skills.value = (r.data.records as SkillListRecordDto[]).map((item) => apiRecordToSkill(item));
+  if (r.meta.success && r.data) {
+    skills.value = (r.data as SkillListRecordDto[]).map((item) => apiRecordToSkill(item));
   } else {
     toast.value = r.message || 'Skill 列表加载失败';
   }

@@ -22,7 +22,7 @@ import {
   marketRoleIsOrgAdmin,
   marketRoleIsSuperAdmin,
   marketRoleCanCreateOrganization,
-  marketRoleShowsOpsAndReview,
+  marketRoleShowsOrgManagement,
 } from '../../services/skillMarket/roleUi';
 import type {
   OverviewQuickFilter,
@@ -280,7 +280,7 @@ function matchesCategoryFilter(skill: Skill): boolean {
 }
 
 function skillTags(skill: any): string[] {
-  return (skill.tags.split(',')?.map((iter: any) => iter.trim()) ?? [])?.map((tag: any) => tag.trim()).filter(Boolean);
+  return (skill.tags?.split(',')?.map((iter: any) => iter.trim()) ?? [])?.map((tag: any) => tag.trim()).filter(Boolean);
 }
 
 function matchesSelectedTags(skill: Skill): boolean {
@@ -701,8 +701,8 @@ async function loadOpsDashboardOverview(): Promise<void> {
       skillBaseService.queryDashboardOverview({ system: 'fuyao' }),
     ]);
     if (fy.meta.success && fy.data) {
-      fuyaoOpsDashboardBundleRef.value = dashboardOverviewToOpsBundle(fy.data);
-      totalSkills.value = fy.data.kpis.skillCount;
+      fuyaoOpsDashboardBundleRef.value = fy.data;
+      totalSkills.value = fy.data.kpis.totalSkills;
       // 暂时 组织数，要重新从接口拿
       orgCount.value = fy.data.rankings?.length ?? orgCount.value;
     }
@@ -721,6 +721,8 @@ onMounted(async () => {
   if (transportIsHttp) {
     await waitUserIdAndDepartmentList();
   }
+  console.log('userId', userId.value);
+  console.log('departmentList', departmentList.value);
   await loadCurrentUserRole();
   if (transportIsHttp) {
     await loadAdminOrganizations();
@@ -885,18 +887,6 @@ async function loadOverviewRemoteMore(expectSeq?: number): Promise<void> {
   }
 }
 
-async function goOverviewPage(pageNo: number): Promise<void> {
-  if (!transportIsHttp) {
-    return;
-  }
-  const nextPage = Math.min(Math.max(1, pageNo), overviewRemoteTotalPages.value);
-  if (nextPage === overviewRemotePage.value && overviewRemoteItems.value.length > 0) {
-    return;
-  }
-  await startOverviewRemoteFetch(nextPage);
-  marketContentRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
 function onOverviewMarketScroll(): void {
   if (innerTab.value !== 'overview') {
     return;
@@ -1003,7 +993,7 @@ const overviewListFooterHint = computed(() => {
     if (overviewRemoteLoading.value) {
       return `加载中…（已展示 ${shown} 条，合计 ${total} 条）`;
     }
-    if (!overviewRemoteExhausted.value) {
+    if (!overviewHasMore.value) {
       return `已加载全部 ${shown} 条（合计 ${total} 条）`
     }
     return `已展示 ${shown} 条 · 合计 ${total} 条 · 继续下拉加载更多`;
@@ -1149,11 +1139,11 @@ async function loadSyncApplicationRows(): Promise<void> {
       skillBaseService.querySyncApplicationList({tab: 'pending', pageNo: 1, pageSize: 100}),
       skillBaseService.querySyncApplicationList({tab: 'done', pageNo: 1, pageSize: 100}),
     ]);
-    if (p.code === 0 && p.data?.records) {
-      syncPendingRows.value = p.data.records.map((row: unknown) => normalizeSyncRecord(row));
+    if (p.meta.success && p.data) {
+      syncPendingRows.value = p.data.map((row: unknown) => normalizeSyncRecord(row));
     }
-    if (d.code === 0 && d.data?.records) {
-      syncDoneRows.value = d.data.records.map((row: unknown) => normalizeSyncRecord(row));
+    if (d.meta.success && d.data) {
+      syncDoneRows.value = d.data.map((row: unknown) => normalizeSyncRecord(row));
     }
   } finally {
     syncListLoading.value = false;
@@ -1385,15 +1375,15 @@ const detailFileTree = async (skill: any) => {
   
   // 获取文件目录
   // 1. 下载 ZIP 文件
-  const reponse = await fetch(d);
-  const arrayBuffer = await reponse.arrayBuffer();
+  const response = await fetch(d);
+  const arrayBuffer = await response.arrayBuffer();
   const zip = new PizZip(arrayBuffer);
-  const structure = {};
+  const structure: any = {};
   for (const [relativePath] of Object.entries(zip.files)) {
     const parts = relativePath.split('/');
     let currentLevel: any = structure;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part: any = parts[i];
       if(!currentLevel[part]) {
         currentLevel[part] = {};
       }
@@ -1407,17 +1397,6 @@ const detailFileTree = async (skill: any) => {
 
   // 获取 SKILL.md 文件
   skillMdFile.value[skill.id] = skill.skillMdContent;
-}
-
-function skillRequirements(skill: Skill): string {
-  return skillScopeLabel(skill).includes('组织') ? '需要组织内权限、Python 3.10+' : '本地运行环境、Python 3.10+';
-}
-
-function skillTagSummary(skill: Skill): string {
-  const deptParts = parseDeptNamePath(skill.dept_name ?? '');
-  return [skill.tagFunctional, skill.skill_id, deptParts[deptParts.length - 1]]
-    .filter(Boolean)
-    .join(' ');
 }
 
 async function parseSkillArchiveForUpload(file: File): Promise<any> {
@@ -1477,15 +1456,15 @@ async function onDownload(id: string, version?: string): Promise<void> {
 }
 
 function onViewVersions(id: string): void {
-  const skill = newSkills.value.find((item) => skillKey(item) === id);
-  detailFileTree(skill)
+  const skill = skills.value.find((item) => skillKey(item) === id);
   if (skill) {
     versionPanelSkill.value = skill;
   }
 }
 
 function openDetailPanel(id: string): void {
-  const skill = skills.value.find((item) => skillKey(item) === id);
+  const skill = newSkills.value.find((item) => skillKey(item) === id);
+  detailFileTree(skill)
   if (skill) {
     detailPanelSkill.value = skill;
   }
@@ -1637,7 +1616,7 @@ const opsDashboardBundle = computed(() => {
   if (opsBoardSystem.value === 'fuyao') {
     return fuyaoOpsDashboardBundleRef.value ?? emptyOpsDashboardBundle();
   }
-  return opsImportedBundle.value ?? JSON.parse(companyOpsDashboardJson) ?? defaultOpsDashboardBundle.value;
+  return opsImportedBundle.value ?? JSON.parse(companyOpsDashboardJson) ?? emptyOpsDashboardBundle();
 });
 
 const uiDeptTree = computed(() => opsDashboardBundle.value.deptTree);
@@ -2318,30 +2297,6 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
 
           <div class="overview-list-footer" role="status">
             <span>{{ overviewListFooterHint }}</span>
-            <div
-              v-if="false && transportIsHttp"
-              class="overview-pagination"
-              role="navigation"
-              aria-label="市场总览分页"
-            >
-              <button
-                type="button"
-                class="overview-page-btn"
-                :disabled="!overviewCanGoPrev"
-                @click="goOverviewPage(overviewRemotePage - 1)"
-              >
-                上一页
-              </button>
-              <span class="overview-page-index">{{ overviewRemotePage }} / {{ overviewRemoteTotalPages }}</span>
-              <button
-                type="button"
-                class="overview-page-btn"
-                :disabled="!overviewCanGoNext"
-                @click="goOverviewPage(overviewRemotePage + 1)"
-              >
-                下一页
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -5843,7 +5798,7 @@ width: 100%;
 }
 
 .skill-detail-dialog {
-  width: min(1040px, calc(100vw - 48px));
+  width: min(67%, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   background: #fff;
   border-radius: 8px;

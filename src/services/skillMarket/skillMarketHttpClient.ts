@@ -209,8 +209,8 @@ export function createSkillMarketHttpClient(
     const env = await get<SkillListPayloadDto>(
       `${SKILL_MARKET_ENDPOINTS.skills}${toSearchParams({ pageNum: 1, pageSize: 500 })}`,
     );
-    if (env.code === 0 && env.data?.records) {
-      skills.value = env.data.records.map(apiRecordToSkill);
+    if (env.data) {
+      skills.value = env.data?.map(apiRecordToSkill);
     }
   }
 

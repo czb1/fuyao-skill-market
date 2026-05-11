@@ -17,7 +17,7 @@ export function emptyOpsDashboardBundle(): OpsDashboardBundle {
     topSkills: [],
     orgBars: [],
     deptTree: [],
-    kpi: {
+    kpis: {
       totalSkills: '0',
       totalDownloads: '0',
       companyDownloads: '0',

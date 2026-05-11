@@ -535,7 +535,7 @@ export function createSkillMarketMockClient(initialSkills?: Skill[]): SkillMarke
       const now = new Date();
       const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`;
       const category = 'utility-doc';
-      const data: UploadSkillResultDto = {
+      const data: any = {
         skillId: stableNumericId({ skill_id: baseName, name: baseName } as Skill),
         name: baseName,
         description: `Mock 自压缩包「${file.name}」`,
