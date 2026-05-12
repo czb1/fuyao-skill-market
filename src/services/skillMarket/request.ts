@@ -75,6 +75,19 @@ function stripPrefix(url: unknown, prefix: string): string {
     return path;
 }
 
+function tryMockThenAxios<T>(
+    channel: 'api' | 'skill' | 'fuyao' | 'direct',
+    requestConfig: AxiosRequestConfig,
+): Promise<T> {
+    const mock = maybeHandleSkillBaseMockRequest<T>(channel, requestConfig);
+    if (mock) {
+        return mock;
+    }
+    return axiosRequest.request<T, T>({
+        ...requestConfig,
+    });
+}
+
 // 请求方法
 const httpRequest = {
     api: <T = null>(config: AxiosRequestConfig): Promise<T> => {
@@ -83,13 +96,7 @@ const httpRequest = {
             baseURL: buildBaseUrl('/api'),
             url: stripPrefix(config.url, '/api'),
         };
-        const mock = maybeHandleSkillBaseMockRequest<T>('api', requestConfig);
-        if (mock) {
-            return mock;
-        }
-        return axiosRequest.request<T, T>({
-            ...requestConfig,
-        })
+        return tryMockThenAxios<T>('api', requestConfig);
     },
     skill: <T = null>(config: AxiosRequestConfig): Promise<T> => {
         const requestConfig = {
@@ -97,13 +104,7 @@ const httpRequest = {
             baseURL: buildBaseUrl('/api/skills'),
             url: stripPrefix(config.url, '/api/skills'),
         };
-        const mock = maybeHandleSkillBaseMockRequest<T>('skill', requestConfig);
-        if (mock) {
-            return mock;
-        }
-        return axiosRequest.request<T, T>({
-            ...requestConfig,
-        })
+        return tryMockThenAxios<T>('skill', requestConfig);
     },
     fuyao: <T = null>(config: AxiosRequestConfig): Promise<T> => {
         const requestConfig = {
@@ -111,21 +112,16 @@ const httpRequest = {
             baseURL: buildFuyaoBaseUrl(),
             url: stripPrefix(config.url, ''),
         };
-        const mock = maybeHandleSkillBaseMockRequest<T>('fuyao', requestConfig);
-        if (mock) {
-            return mock;
-        }
-        return axiosRequest.request<T, T>({
-            ...requestConfig,
-        })
+        return tryMockThenAxios<T>('fuyao', requestConfig);
     },
     direct: <T = null>(config: AxiosRequestConfig): Promise<T> => {
-        return axiosRequest.request<T, T>({
+        const requestConfig = {
             ...config,
             baseURL: '/',
             url: stripPrefix(config.url, '/'),
-        })
-    }
+        };
+        return tryMockThenAxios<T>('direct', requestConfig);
+    },
 }
 
 export default httpRequest;

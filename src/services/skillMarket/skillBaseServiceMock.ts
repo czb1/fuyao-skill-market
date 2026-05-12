@@ -7,7 +7,14 @@ import { getBuiltInSkills } from './mock/builtInSkills';
 import { getMockMarketDepartmentsTree } from './mock/marketDepartmentsTreeDefault';
 import { marketSkillsToOpsExcelRows } from './opsBundleFromSkills';
 
-type MockChannel = 'api' | 'skill' | 'fuyao';
+type MockChannel = 'api' | 'skill' | 'fuyao' | 'direct';
+
+const MOCK_VALIDATE_USER = {
+  uid: 'w30000001',
+  displayNameEN: 'Mock User',
+  displayNameCN: '模拟用户',
+  mail: 'mock.user@example.com',
+} as const;
 
 type MockEnvelope<T> = {
   code: number;
@@ -1019,6 +1026,39 @@ function handleApiRequest(method: string, path: string, config: AxiosRequestConf
   return null;
 }
 
+function handleDirectRequest(method: string, path: string): Record<string, string> | null {
+  if (method !== 'get') {
+    return null;
+  }
+  if (path.includes('matestoreauthservice/v1/users/validate') || path.endsWith('/users/validate')) {
+    return { ...MOCK_VALIDATE_USER };
+  }
+  return null;
+}
+
+function handleFuyaoUserPlainResponse(
+  method: string,
+  path: string,
+  config: AxiosRequestConfig,
+): unknown | null {
+  if (method !== 'get') {
+    return null;
+  }
+  if (path.includes('auth-manager/login')) {
+    return { success: true, code: 0, data: { status: 'ok' } };
+  }
+  if (path.includes('config-center/user')) {
+    const userId = String(readParams(config).userId ?? '').trim();
+    return {
+      messageEn: 'success',
+      data: {
+        list: userId ? [{ userId, role: 'SUPER_ADMIN' }] : [],
+      },
+    };
+  }
+  return null;
+}
+
 function handleFuyaoRequest(method: string, path: string, config: AxiosRequestConfig): MockEnvelope<unknown> | null {
   if (method === 'post' && path === '/resource/resource-management/v1/storage/file') {
     const file = fileFromFormData(config.data);
@@ -1054,11 +1094,43 @@ export function maybeHandleSkillBaseMockRequest<T>(
   }
   const method = normalizeMethod(config.method);
   const path = normalizePath(config.url);
-  const envelope =
-    channel === 'skill'
-      ? handleSkillRequest(method, path, config)
-      : channel === 'api'
-        ? handleApiRequest(method, path, config)
-        : handleFuyaoRequest(method, path, config);
-  return envelope ? Promise.resolve(envelope as T) : null;
+  if (import.meta.env.DEV) {
+    console.info(`[skillBaseMock] ${channel} ${method.toUpperCase()} ${path || '(empty)'}`);
+  }
+
+  if (channel === 'direct') {
+    const raw = handleDirectRequest(method, path);
+    if (raw != null) {
+      return Promise.resolve(raw as T);
+    }
+    if (import.meta.env.DEV) {
+      console.warn('[skillBaseMock] no handler (direct)', path);
+    }
+    return null;
+  }
+
+  if (channel === 'fuyao') {
+    const plain = handleFuyaoUserPlainResponse(method, path, config);
+    if (plain != null) {
+      return Promise.resolve(plain as T);
+    }
+    const envelope = handleFuyaoRequest(method, path, config);
+    if (envelope) {
+      return Promise.resolve(envelope as T);
+    }
+    if (import.meta.env.DEV) {
+      console.warn('[skillBaseMock] no handler (fuyao)', path);
+    }
+    return null;
+  }
+
+  if (channel === 'skill') {
+    const envelope = handleSkillRequest(method, path, config);
+    return envelope ? Promise.resolve(envelope as T) : null;
+  }
+  if (channel === 'api') {
+    const envelope = handleApiRequest(method, path, config);
+    return envelope ? Promise.resolve(envelope as T) : null;
+  }
+  return null;
 }

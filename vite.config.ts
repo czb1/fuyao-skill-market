@@ -1,5 +1,9 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -10,6 +14,11 @@ export default defineConfig(({ mode }) => {
   return {
     base: env.VITE_BASE || '/skill-market/',
     plugins: [vue()],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src'),
+      },
+    },
     server: {
       proxy: {
         '/fuyaoDomain': {
@@ -17,7 +26,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
           /** 仅本地前缀用于命中代理；上游不应收到 `/fuyaoDomain` */
-          rewrite: (path) => path.replace(/^\/fuyaoDomain/, '') || '/',
+          rewrite: (reqPath) => reqPath.replace(/^\/fuyaoDomain/, '') || '/',
         },
       },
     },
