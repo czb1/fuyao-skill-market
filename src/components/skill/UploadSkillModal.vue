@@ -7,8 +7,15 @@ import { useProfileStore } from '../../stores/userStore';
 
 const skillMarketStore = useSkillMarketStore();
 const userStore = useProfileStore();
-// const userId = computed(() => userStore.userInfo?.w3Id);
-const userId = computed(() => skillMarketStore.userId);
+
+/** 与全链路一致：优先父应用/市场 store 注入的工号，否则回退 Profile 的 w3Id */
+const userId = computed(() => {
+  const fromMarket = String(skillMarketStore.userId ?? '').trim();
+  if (fromMarket) {
+    return fromMarket;
+  }
+  return String(userStore.userInfo?.w3Id ?? '').trim();
+});
 
 type ParsedSkillMeta = {
   name: string;

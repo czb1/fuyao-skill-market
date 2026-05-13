@@ -25,9 +25,8 @@ export default defineConfig(({ mode }) => {
           target: fuyaoTarget,
           changeOrigin: true,
           secure: true,
-          /** 仅本地前缀用于命中代理；上游不应收到 `/fuyaoDomain` */
-          rewrite: (reqPath) => reqPath.replace(/^\/fuyaoDomain/, '') || '/',
-        },
+          rewrite: (path) => path.replace(/^\/fuyaoDomain/, '') || '/',
+        }
       },
     },
   };

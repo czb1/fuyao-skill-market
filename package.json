@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build": "vite build",
+    "buildGamma": "vite build --mode development",
+    "buildProd": "vite build --mode production",
     "preview": "vite preview",
     "format": "prettier . --write",
     "lint": "eslint ."
