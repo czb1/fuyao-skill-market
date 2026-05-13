@@ -166,6 +166,7 @@ export function uploadSkillApi(
     name,
     icon: '📦',
     publisher,
+    createBy: publisher,
     latestPublishTime: publishTime,
     level: publishLevel,
     downloads: 0,

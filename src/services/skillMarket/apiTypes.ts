@@ -100,6 +100,7 @@ export type SkillListRecordDto = {
   name: string;
   description: string;
   author: string;
+  createBy?: string;
   version: string;
   category: string;
   categoryGroupName: string;
@@ -196,6 +197,7 @@ export type SkillDetailDto = {
   description: string;
   requirements: string;
   author: string;
+  createBy?: string;
   version: string;
   category: string;
   categoryGroupName: string;
@@ -268,6 +270,7 @@ export type UploadSkillResultDto = {
   description: string;
   requirements: string;
   author: string;
+  createBy?: string;
   version: string;
   category: string;
   categoryGroupName: string;

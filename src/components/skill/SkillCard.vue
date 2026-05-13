@@ -36,7 +36,7 @@ function skillLevelText(): string {
 }
 
 const ownerText = computed(() => {
-  return text(props.skill.author) || '未配置作者';
+  return text(props.skill.createBy) || '未配置创建人';
 });
 
 const deptText = computed(() => {
