@@ -8,8 +8,6 @@ import { useProfileStore } from '../../stores/userStore';
 
 const skillMarketStore = useSkillMarketStore();
 const userStore = useProfileStore();
-// const userId = computed(() => userStore.userInfo?.w3Id);
-const userId = computed(() => skillMarketStore.userId);
 
 type ParsedSkillMeta = {
   name: string;
@@ -33,11 +31,29 @@ const props = withDefaults(
     modelValue: boolean;
     /** 对接 `POST /api/skills/upload/parse`；不传则保持本地 Mock 解析（仅开发兜底） */
     parseSkillArchive?: (file: File) => Promise<any>;
+    /**
+     * 上传/解析接口使用的操作者工号。建议由 `UserMarketShell` 传入其 `userId` 计算属性（含角色 employeeNo 回退），
+     * 避免弹窗内仅读 store 时与壳层「角色已返回、store 尚未回填」的瞬时不同步。
+     */
+    operatorUserId?: string;
   }>(),
   {
     modelValue: false,
   },
 );
+
+/** 父级传入 > 市场 store > Profile w3Id */
+const userId = computed(() => {
+  const fromParent = String(props.operatorUserId ?? '').trim();
+  if (fromParent) {
+    return fromParent;
+  }
+  const fromMarket = String(skillMarketStore.userId ?? '').trim();
+  if (fromMarket) {
+    return fromMarket;
+  }
+  return String(userStore.userInfo?.w3Id ?? '').trim();
+});
 
 const emit = defineEmits<{
   'update:modelValue': [v: boolean];
