@@ -49,8 +49,24 @@ import { useSkillMarketStore } from '../../stores/skillMarketStore';
 import { useProfileStore } from '../../stores/userStore';
 const skillMarketStore = useSkillMarketStore();
 const userStore = useProfileStore();
-// const userId = computed(() => userStore.userInfo?.w3Id);
-const userId = computed(() => skillMarketStore.userId);
+
+const currentUserRole = ref<CurrentUserRoleDto | null>(null);
+
+/**
+ * 与接口约定一致的操作者工号：父应用注入 > 角色接口 employeeNo > Profile w3Id。
+ * skillBaseService 走 axios，不会自动带 userId，此处必须能尽早给出非空值（否则 query 里全是空字符串）。
+ */
+const userId = computed(() => {
+  const fromStore = String(skillMarketStore.userId ?? '').trim();
+  if (fromStore) {
+    return fromStore;
+  }
+  const fromRole = String(currentUserRole.value?.employeeNo ?? '').trim();
+  if (fromRole) {
+    return fromRole;
+  }
+  return String(userStore.userInfo?.w3Id ?? '').trim();
+});
 const departmentList = computed(() => skillMarketStore.departmentList);
 
 const skills = ref<any[]>([]);
@@ -60,7 +76,6 @@ const totalDownloads = ref<any>(0);
 const totalSkills = ref(0);
 const downloadsLast30Days = ref(0);
 const orgCount = ref(0);
-const currentUserRole = ref<CurrentUserRoleDto | null>(null);
 
 const transportIsHttp = import.meta.env.VITE_SKILL_MARKET_TRANSPORT === 'http';
 const route = useRoute();
@@ -747,9 +762,9 @@ async function loadCurrentUserRole(): Promise<void> {
   }
 }
 
-/** 工号：store（含父级透传、或由 loadCurrentUserRole 用工号接口 employeeNo 回填）优先，否则用已缓存角色里的 employeeNo */
+/** 工号：与 `userId` 计算属性同源（保留函数便于与旧调用对齐） */
 function effectiveSkillUserId(): string {
-  return userId.value?.trim() || currentUserRole.value?.employeeNo?.trim() || '';
+  return userId.value?.trim() || '';
 }
 
 async function loadOpsDashboardOverview(): Promise<void> {
@@ -2716,6 +2731,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
 
     <UploadSkillModal
       v-model="uploadOpen"
+      :operator-user-id="userId"
       :parse-skill-archive="parseSkillArchiveForUpload"
       @submit="onUploadSubmit"
     />
