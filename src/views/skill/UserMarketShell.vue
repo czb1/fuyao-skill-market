@@ -178,7 +178,7 @@ const page = reactive<any>({
   pageIndex: pageNumValue.value,
   pageSize: pageSizeValue.value,
   pageSizeOptions: [10, 20, 50, 100],
-})
+});
 
 const overviewFilterObj = ref<any>({
   keyword: '',
@@ -389,14 +389,14 @@ function sortOverviewSkills(list: Skill[]): Skill[] {
   );
 }
 
-let lastScrollTop = 0;
+let lastScrollTop = 0;  // 上一次的滚动位置
 const handleScroll = async () => {
   const el = marketContentRef.value;
   if (!el) {
     return;
   }
   const scrollTop = el.scrollTop;
-  if (scrollTop > lastScrollTop - 100) {
+  if (scrollTop <= lastScrollTop - 100) { // 正在向上滚动
     lastScrollTop = scrollTop;
     return;
   }
@@ -408,10 +408,10 @@ const handleScroll = async () => {
     if (page.pageIndex * page.pageSize < page.total) {
       overviewFilterObj.value.pageNum += 1;
       page.pageIndex += 1;
-      await startOverviewRemoteFetch(true);
+      await startOverviewRemoteFetch(true)
       setTimeout(() => {
         el.scrollTop = el.scrollHeight;
-      }, 0)
+      }, 0);
     }
   }
   lastScrollTop = scrollTop;
@@ -808,16 +808,16 @@ async function loadOpsDashboardOverview(): Promise<void> {
 const filteredMyReleaseRows = ref<any>([])
 
 const debounce = (fn: any, delay: number): any => {
-  let timer: any = null;
+  let timer: any;
   return () => {
-    if(timer) {
+    if (timer) {
       clearTimeout(timer);
     }
     timer = setTimeout(() => {
       fn();
     }, delay);
   };
-}
+};
 
 const debounceScroll = debounce(handleScroll, 200);
 
@@ -836,7 +836,7 @@ onMounted(async () => {
     // await loadOpsDashboardOverview();
     const el = marketContentRef.value;
     if (el) {
-      el.addEventListener('scroll',debounceScroll);
+      el.addEventListener('scroll', debounceScroll);
     }
   }
   document.addEventListener('mousedown', onMarketDeptCascaderDocDown);
@@ -848,7 +848,7 @@ onUnmounted(() => {
   if(el) {
     el.removeEventListener('scroll', debounceScroll);
   }
-})
+});
 
 onBeforeUnmount(() => {
   closeDeleteConfirm();
@@ -875,25 +875,14 @@ const overviewFilteredAll = computed(() => {
   return sortOverviewSkills(list);
 });
 
-function applyOverviewDisplayFilters(raw: Skill[]): Skill[] {
-  if (transportIsHttp) {
-    return sortOverviewSkills(raw);
-  }
-  const q = search.value.trim().toLowerCase();
-  const scope = toListScope(quickFilter.value);
-  let list = raw.filter(
-    (s) => matchesPrimaryFilters(s, q, scope) && matchesSelectedTags(s),
-  );
-  return sortOverviewSkills(list);
-}
-
-async function startOverviewRemoteFetch(isPageOVer?: boolean): Promise<void> {
+async function startOverviewRemoteFetch(isPageOver?: boolean): Promise<void> {
   overviewRemoteLoading.value = true;
   try {
     const env = await skillBaseService.querySkillList(overviewFilterObj.value);
     if(env.meta.success && env.data) {
-      newSkills.value = isPageOVer ? [...newSkills.value, ...env.data] : [...env.data];
+      newSkills.value = isPageOver ? [...newSkills.value, ...env.data] : [...env.data];
       overviewRemoteTotal.value = env.meta.number;
+      page.total = env.meta.number;
       overviewRemoteExhausted.value = newSkills.value.length === 0 || newSkills.value.length >= overviewRemoteTotal.value;
       totalDownloads.value = newSkills.value.reduce((acc, curr) => acc + parseInt(curr.downloads ?? 0), 0);
     }
@@ -1070,7 +1059,7 @@ async function toggleTagFilter(tag: string): void {
   selectedTags.value = selectedTags.value.includes(tag)
     ? selectedTags.value.filter((item) => item !== tag)
     : [...selectedTags.value, tag];
-  overviewFilterObj.value.tagList = selectedTags.value.join(',');
+  overviewFilterObj.value.tagList = [...selectedTags.value].join(',');
   overviewFilterObj.value.pageNum = 1;
   page.pageIndex = 1;
   await startOverviewRemoteFetch();
@@ -2637,7 +2626,6 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
 
 <template>
   <div class="all-iframe">
-
     <UploadSkillModal
       v-model="uploadOpen"
       :operator-user-id="userId"
@@ -3100,8 +3088,10 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
             <div
               ref="marketContentRef"
               class="market-list-scroll"
-              @scroll.passive="onOverviewMarketScroll"
             >
+              <div class="overview-list-footer" role="status">
+                <span>{{ overviewListFooterHint }}</span>
+              </div>
               <p
                 v-if="transportIsHttp && overviewRemoteLoading && overviewRemoteItems.length === 0"
                 class="empty overview-loading-hint"
