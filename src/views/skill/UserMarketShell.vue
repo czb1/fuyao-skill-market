@@ -527,7 +527,7 @@ function marketOverviewDeptPickHasChildren(levelIndex: number, name: string): bo
 
 const clearOverviewDeptCascader = async () => {
   for(let i in overviewMarketDeptSegments.value) {
-    const num = Number(i) + 1;
+    const num = Number(i) + 3;
     const deptField = `departmentL${num}`;
     overviewFilterObj.value[deptField] = '';
   }
@@ -538,11 +538,12 @@ const clearOverviewDeptCascader = async () => {
 
 const deptFilterOnChange = async () => {
   for(let i in overviewMarketDeptSegments.value) {
-    const num = Number(i) + 1;
+    const num = Number(i) + 3;
     const deptField = `departmentL${num}`;
     overviewFilterObj.value[deptField] = overviewMarketDeptSegments.value[i];
   }
   await startOverviewRemoteFetch();
+  overviewDeptCascaderOpen.value = false;
 }
 
 function onMarketDeptCascaderDocDown(ev: MouseEvent): void {
