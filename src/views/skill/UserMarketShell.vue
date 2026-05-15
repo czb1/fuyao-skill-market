@@ -911,6 +911,8 @@ const changeOverviewTab = async (tabName: string) => {
   } else if(tabName === 'devDept') {
     overviewFilterObj.value.status = '组织级';
   }
+  overviewFilterObj.value.pageNum = 1;
+  page.pageIndex = 1;
   await startOverviewRemoteFetch();
 }
 
