@@ -15,6 +15,7 @@ import SkillCard from '../../components/skill/SkillCard.vue';
 import SkillDetailDialog from '../../components/skill/SkillDetailDialog.vue';
 import SkillVersionManageDialog from '../../components/skill/SkillVersionManageDialog.vue';
 import UploadSkillModal from '../../components/skill/UploadSkillModal.vue';
+import ReviewCenterPage from '../skill/ReviewCenterPage.vue';
 import companyOpsDashboardJson from '/src/mock/opsDashboardCompanyDefault.json?raw';
 import type {
   BusinessDimensionDto,
@@ -223,7 +224,7 @@ const orgForm = ref({
   admins: '',
   enabled: 1,
 });
-const isEnableArr = ref<any>([])
+const isEnableArr = ref<any>([]);
 
 const approvalSubTab = ref<'pending' | 'done'>('pending');
 const syncPendingRows = ref<any[]>([]);
@@ -2836,6 +2837,15 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
         >
           审核中心
         </button>
+        <button
+          v-if="showAdminModules"
+          type="button"
+          class="sub-tab"
+          :class="{ on: innerTab === 'review' }"
+          @click="goTab('review')"
+        >
+          评审
+        </button>
       </nav>
 
       <label
@@ -2863,7 +2873,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
       <button v-if="false" type="button" class="top-icon" aria-label="通知">🔔</button>
     </header>
 
-    <section v-if="innerTab !== 'overview'" class="hero">
+    <section v-if="innerTab !== 'overview' && innerTab !== 'review'" class="hero">
       <div class="hero-inner">
         <h1 class="hero-title">探索原子能力，加速业务交付</h1>
         <p class="hero-desc">在 Skill 市场发现、共享和复用高质量工程资产，全面提升组织效能。</p>
@@ -2871,6 +2881,17 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           <button type="button" class="btn primary" @click="openUpload">
             <span class="up">+</span> 发布我的 Skill
           </button>
+        </div>
+      </div>
+    </section>
+    <section v-if="innerTab === 'review'" class="hero">
+      <div class="hero-inner">
+        <h1 class="hero-title">优秀 Skill 评审</h1>
+        <p class="hero-desc">
+          月度/季度评优工作台，自动评分仅做参考，最终按专家评分 70% + 使用数据 30% 计算。
+        </p>
+        <div v-if="false" class="hero-actions">
+          <button type="button" class="btn primary">发起专家评审</button>
         </div>
       </div>
     </section>
@@ -3902,6 +3923,10 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           </div>
         </div>
       </section>
+    </div>
+
+    <div v-else-if="innerTab === 'review'" class="panel tab-panel">
+      <ReviewCenterPage />
     </div>
 
     <Teleport to="body">

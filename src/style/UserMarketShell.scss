@@ -877,10 +877,9 @@
 
 @media (max-width: 600px) {
   .org-bar-row {
-    grid-template-columns: minmax(72px, min(var(--org-bar-label-width, 88px), 128px)) minmax(
-        0,
-        1fr
-      ) 64px;
+    grid-template-columns:
+      minmax(72px, min(var(--org-bar-label-width, 88px), 128px)) minmax(0, 1fr)
+      64px;
   }
 }
 
