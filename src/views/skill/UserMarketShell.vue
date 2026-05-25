@@ -109,7 +109,7 @@ const innerTabAliases: Record<string, UserInnerTab> = {
   ops: 'ops',
   operation: 'ops',
   dashboard: 'ops',
-  运营看板: 'ops',
+  运营管理: 'ops',
   org: 'org',
   组织管理: 'org',
   organization: 'org',
@@ -828,7 +828,7 @@ async function loadOpsDashboardOverview(): Promise<void> {
     }
   } catch (e) {
     if (transportIsHttp) {
-      showToast(e instanceof Error ? e.message : '运营看板加载失败');
+      showToast(e instanceof Error ? e.message : '运营管理加载失败');
     }
   }
 }
@@ -1317,6 +1317,36 @@ function myPublishReleaseOp(row: SkillListRecordDto): 'upgraded' | 'upgrade' | '
   }
   return 'upgrade';
 }
+
+const releaseToOrganization = async (row: any): Promise<void> => {
+  let orgObj = {
+    pluginType: 4,
+    pluginId: '',
+    publishLevel: 1,
+    publisherId: '',
+  };
+  await skillBaseService.queryOrganizationList({ userId: userId.value }).then((res: any) => {
+    if (res.meta.success && Array.isArray(res.data) && res.data.length) {
+      const obj = res.data[0];
+      orgObj.publisherId = obj?.orgCode || '';
+      orgObj.pluginId = obj?.id || '';
+    }
+  });
+  await skillBaseService.syncSkillToAgentCenter(
+    {
+      reson: '测试',
+      targetOrgId: 13,
+    },
+    row.id,
+  );
+
+  const res = await skillBaseService.releaseToOrganization(String(row.id));
+  if (!res.meta.success) {
+    showToast(res.message || '升级失败');
+    return;
+  }
+  showToast('升级成功');
+};
 
 async function openMyReleaseVersions(row: SkillListRecordDto, syncRoute: boolean): Promise<void> {
   versionManageShowOperations.value = true;
@@ -2395,7 +2425,7 @@ const opsExcelInputRef = ref<HTMLInputElement | null>(null);
 const fuyaoOpsDashboardBundleRef = ref<OpsDashboardBundle | null>(null);
 
 const opsBoardSystem = ref<'fuyao' | 'company'>('fuyao');
-/** 公司运营看板「Excel 导入」仅管理员可用；扶摇看板不提供导入 */
+/** 公司运营管理「Excel 导入」仅管理员可用；扶摇看板不提供导入 */
 const showOpsExcelImport = computed(() => {
   return opsBoardSystem.value === 'company' && currentUserRole.value?.role === 'SUPER_ADMIN';
 });
@@ -2601,7 +2631,7 @@ const opsTopTitle = 'TOP Skill';
 const opsTopSubTitle = '按下载量展示当前市场中使用最集中的 Skill。';
 
 const opsEmptyText = computed(() =>
-  opsBoardSystem.value === 'company' ? '暂无公司系统运营看板数据' : '暂无扶摇系统运营看板数据',
+  opsBoardSystem.value === 'company' ? '暂无公司系统运营管理数据' : '暂无扶摇系统运营管理数据',
 );
 
 const opsOrgBarsHelpText = computed(() =>
@@ -2664,7 +2694,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
     } else {
       downloadOpsDashboardExportJson(file.name, bundle);
       showToast(
-        `已解析 ${rows.length} 条并下载 JSON；扶摇运营看板仅展示接口数据，导入不会更新该页`,
+        `已解析 ${rows.length} 条并下载 JSON；扶摇运营管理仅展示接口数据，导入不会更新该页`,
       );
     }
   } catch (e) {
@@ -2812,7 +2842,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           :class="{ on: innerTab === 'ops' }"
           @click="goTab('ops')"
         >
-          运营看板
+          运营管理
         </button>
         <button
           v-if="showAdminModules"
@@ -2833,7 +2863,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           审核中心
         </button>
         <button
-          v-if="showAdminModules"
+          v-if="false && showAdminModules"
           type="button"
           class="sub-tab"
           :class="{ on: innerTab === 'review' }"
@@ -3603,17 +3633,17 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
     </div>
 
     <div v-else-if="innerTab === 'ops'" class="panel tab-panel ops">
-      <section class="ops-dashboard-card ops-dashboard" aria-label="Skill 运营看板">
+      <section class="ops-dashboard-card ops-dashboard" aria-label="Skill 运营管理">
         <header class="ops-title">
           <div>
-            <h2>运营看板</h2>
+            <h2>运营管理</h2>
             <p>
               扶摇系统侧关注个人级沉淀、快速验证和产线验证；公司系统侧关注目标系统统一管理的组织级
               Skill。
             </p>
           </div>
           <div class="ops-filter">
-            <div class="ops-toggle ops-system-toggle" role="tablist" aria-label="运营看板系统切换">
+            <div class="ops-toggle ops-system-toggle" role="tablist" aria-label="运营管理系统切换">
               <button
                 type="button"
                 class="ops-system-btn"
@@ -3650,7 +3680,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                 class="visually-hidden"
                 type="file"
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                aria-label="选择运营看板 Excel 文件"
+                aria-label="选择运营管理 Excel 文件"
                 @change="onOpsExcelFileChange"
               />
               <button
@@ -3665,7 +3695,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           </div>
         </header>
 
-        <div class="ops-kpis" role="group" aria-label="运营看板指标">
+        <div class="ops-kpis" role="group" aria-label="运营管理指标">
           <div v-for="card in opsKpiCards" :key="card.label" class="ops-kpi">
             <small>{{ card.label }}</small>
             <strong>{{ formatOpsNumber(card.value) }}</strong>

@@ -6,7 +6,7 @@ import type {
 } from '../../utils/opsExcelImport';
 
 /**
- * 将设计文档 §3.3.13 `GET /api/dashboard/overview` 的 `data` 映射为运营看板页使用的 `OpsDashboardBundle`。
+ * 将设计文档 §3.3.13 `GET /api/dashboard/overview` 的 `data` 映射为运营管理页使用的 `OpsDashboardBundle`。
  * 公司系统看板若走后端 JSON 聚合接口（`/api/dashboard/ops-ui`），则无需经过本函数。
  */
 function mapDeptTree(nodes: DashboardOverviewDto['deptTree']): DeptTreeNode[] {

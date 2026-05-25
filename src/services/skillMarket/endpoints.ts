@@ -41,7 +41,7 @@ export const SKILL_MARKET_ENDPOINTS = {
   /** §3.3.12 仅 SUPER_ADMIN */
   superAdmins: '/api/super-admins',
   superAdminById: (id: string | number) => `/api/super-admins/${encodeURIComponent(String(id))}`,
-  /** §3.3.13 运营看板（扶摇侧 HTTP 由 `fetchOpsDashboardUi('fuyao')` 使用并映射为 UI Bundle） */
+  /** §3.3.13 运营管理（扶摇侧 HTTP 由 `fetchOpsDashboardUi('fuyao')` 使用并映射为 UI Bundle） */
   dashboardOverview: '/api/dashboard/overview',
   /** 占位；公司看板只读打包 mock JSON，前端不请求 */
   dashboardOpsUi: (system: 'fuyao' | 'company') =>

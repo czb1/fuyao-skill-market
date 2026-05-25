@@ -229,7 +229,7 @@ export const skillBaseService = {
     });
   },
 
-  // 运营看板接口
+  // 运营管理接口
   queryDashboardOverview: (params: any): any => {
     return httpRequest.api<any>({
       url: '/dashboard/overview',

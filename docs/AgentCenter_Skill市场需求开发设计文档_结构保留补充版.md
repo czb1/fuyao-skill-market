@@ -46,8 +46,8 @@ Agent Center Skill 市场，负责公司层面的组织级 Skill 管理、发布
 3. 支持个人级 Skill 同步至Agent Center 组织，形成组织级 Skill。
 4. 支持目标组织管理员审核同步申请。
 5. 支持组织管理，配置组织名称、组织 ID、组织管理员。
-6. 支持市场总览、我的发布、审核中心、组织管理、运营看板。
-7. 支持运营看板在扶摇系统与Agent Center Skill 市场之间切换。
+6. 支持市场总览、我的发布、审核中心、组织管理、运营管理。
+7. 支持运营管理在扶摇系统与Agent Center Skill 市场之间切换。
 8. 支持同步流程接入评测集、代码仓门禁、安全扫描和Agent Center Skill 市场发布验收。
 9. 支持管理员按月、按部门对 Skill 进行集中质量评审。
 10. 支持优秀 Skill、推荐复用、待优化、高分 Skill 等质量勋章识别。
@@ -62,7 +62,7 @@ Agent Center Skill 市场，负责公司层面的组织级 Skill 管理、发布
 2. 用户能完成 Skill 上传、查看、试用、下载。
 3. 用户能清晰查看个人级 Skill 的状态。
 4. 管理员角色由超级管理员表和组织管理员配置共同生成。
-5. 运营看板聚焦 Skill 数量、下载量、点赞量、点踩量和优秀 Skill 识别。
+5. 运营管理聚焦 Skill 数量、下载量、点赞量、点踩量和优秀 Skill 识别。
 6. 页面风格轻量、清晰，并适配嵌入式平台场景。
 7. 管理员可以在独立质量评审页签中集中完成评分、打标和归档，不依赖单个 Skill 详情页操作。
 8. 市场总览支持按勋章、评分状态和未评分 Skill 筛选。
@@ -142,8 +142,8 @@ Agent Center Skill 市场，负责公司层面的组织级 Skill 管理、发布
 5. 查看全部组织配置。
 6. 查看全部组织的审核中心待审核和已完成列表。
 7. 审核任意组织的同步至Agent Center 组织申请。
-8. 查看全部组织的运营看板数据。
-9. 导入运营看板 Excel 数据。
+8. 查看全部组织的运营管理数据。
+9. 导入运营管理 Excel 数据。
 10. 进入质量评审页签，对全部组织或部门范围内的 Skill 进行评分、勋章标记和归档。
 11. 维护超级管理员工号配置，包括新增、启用、停用和备注维护。
 
@@ -165,8 +165,8 @@ Agent Center Skill 市场，负责公司层面的组织级 Skill 管理、发布
 4. 修改自己管理的组织配置。
 5. 审核自己管理组织下的同步至Agent Center 组织申请。
 6. 查看审核中心中自己管理组织的待审核和已完成列表。
-7. 查看自己管理组织范围内的运营看板。
-8. 导入自己管理组织范围内的运营看板 Excel 数据。
+7. 查看自己管理组织范围内的运营管理。
+8. 导入自己管理组织范围内的运营管理 Excel 数据。
 9. 进入质量评审页签，对自己管理组织或该组织关联部门范围内的 Skill 进行评分、勋章标记和归档。
 
 普通管理员限制：
@@ -216,7 +216,7 @@ Agent Center Skill 市场，负责公司层面的组织级 Skill 管理、发布
 | 个人级 | 用户上传后默认发布，无需审核                  |
 | 组织级 | 个人级同步至Agent Center 组织并审核通过后形成 |
 
-部门层级用于“分层筛选部门”和运营看板部门树。
+部门层级用于“分层筛选部门”和运营管理部门树。
 
 ### 1.6.2 我的发布状态
 
@@ -614,9 +614,9 @@ Content-Type: multipart/form-data
 4. 普通用户不展示组织管理入口，即使直接访问接口也必须返回无权限。
 5. 超级管理员配置入口只对超级管理员展示。
 
-### 1.9.6 运营看板
+### 1.9.6 运营管理
 
-运营看板页签名称为“运营看板”，页面内部支持系统切换：
+运营管理页签名称为“运营管理”，页面内部支持系统切换：
 
 ```text
 扶摇系统 / Agent Center Skill 市场
@@ -770,7 +770,7 @@ API Gateway
 
 | 层级       | 职责                                                                   |
 | ---------- | ---------------------------------------------------------------------- |
-| 前端展示层 | 市场总览、我的发布、组织管理、审核中心、运营看板、质量评审、弹窗交互   |
+| 前端展示层 | 市场总览、我的发布、组织管理、审核中心、运营管理、质量评审、弹窗交互   |
 | API 接入层 | 鉴权、路由、限流、统一错误处理                                         |
 | 业务服务层 | Skill 管理、上传解析、同步审核、组织管理、运营统计、质量评审、反馈统计 |
 | 集成服务层 | 文件服务、Agent Center Skill 市场、评测集、代码仓门禁对接              |
@@ -1135,7 +1135,7 @@ CREATE TABLE dashboard_metric (
   UNIQUE KEY uk_metric_scope (stat_date, system_type, org_id, dept_level, dept_name),
   KEY idx_metric_date_system (stat_date, system_type),
   KEY idx_metric_dept (dept_level, dept_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='运营看板统计表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='运营管理统计表';
 ```
 
 ### 3.1.7 skill_operation_log 表
@@ -1941,7 +1941,7 @@ GROUP BY
 
 #### 3.3.3.2 Skill 下载与下载量统计接口
 
-当前市场列表接口和 Skill 详情接口已经返回 `downloads` 字段，运营看板也会展示累计下载量。为保证下载动作、下载量实时累计和下载趋势统计口径一致，补充独立的下载接口和下载量统计接口。
+当前市场列表接口和 Skill 详情接口已经返回 `downloads` 字段，运营管理也会展示累计下载量。为保证下载动作、下载量实时累计和下载趋势统计口径一致，补充独立的下载接口和下载量统计接口。
 
 ##### 3.3.3.2.1 Skill 下载接口
 
@@ -1973,7 +1973,7 @@ Content-Type: application/json
 2. 校验当前用户是否具备下载权限；首版普通用户、普通管理员、超级管理员均可下载市场可见 Skill。
 3. 读取 `skill.package_path` 或当前版本 `skill_version.package_path`。
 4. `skill.downloads = skill.downloads + 1`，用于市场卡片和详情页实时展示。
-5. 当日 `skill_feedback_stat.downloads = downloads + 1`，用于 T+1 统计、趋势图和运营看板汇总。
+5. 当日 `skill_feedback_stat.downloads = downloads + 1`，用于 T+1 统计、趋势图和运营管理汇总。
 6. 写入 `skill_operation_log`，`operation_type = 下载`，记录下载人、Skill ID、来源页面和结果。
 7. 返回文件下载地址或文件服务临时下载 URL。
 
@@ -2079,7 +2079,7 @@ ORDER BY stat_date ASC;
 统计一致性要求：
 
 1. 市场卡片和详情页展示的 `downloads` 优先读取 `skill.downloads`，用于实时展示。
-2. 运营看板、趋势图和历史分析优先读取 `skill_feedback_stat`，用于按天统计。
+2. 运营管理、趋势图和历史分析优先读取 `skill_feedback_stat`，用于按天统计。
 3. 下载接口必须同时更新 `skill.downloads` 和 `skill_feedback_stat.downloads`，避免实时值和统计值长期不一致。
 4. 如下载接口执行到文件服务失败，不能累计下载量；只有确认可返回下载地址后才累计。
 5. 如已返回下载地址但统计更新失败，应返回失败并记录异常日志，避免用户误以为下载成功但统计缺失。
@@ -2309,8 +2309,8 @@ GET /api/users/current/role
 
 菜单展示规则：
 
-1. `role=SUPER_ADMIN`：展示组织管理、审核中心、运营看板、质量评审、超级管理员配置。
-2. `role=ORG_ADMIN`：展示组织管理、审核中心、运营看板、质量评审，不展示超级管理员配置，不展示新增组织按钮。
+1. `role=SUPER_ADMIN`：展示组织管理、审核中心、运营管理、质量评审、超级管理员配置。
+2. `role=ORG_ADMIN`：展示组织管理、审核中心、运营管理、质量评审，不展示超级管理员配置，不展示新增组织按钮。
 3. `role=USER`：只展示市场总览、我的发布等普通用户功能。
 
 ### 3.3.11 组织管理接口
@@ -2372,7 +2372,7 @@ PUT /api/super-admins/{id}
 5. 超级管理员配置变更必须写入 skill_operation_log 或平台统一审计日志。
 6. 系统应至少保留一个启用状态的超级管理员；当停用最后一个超级管理员时，接口返回失败。
 
-### 3.3.13 运营看板接口
+### 3.3.13 运营管理接口
 
 ```http
 GET /api/dashboard/overview
@@ -2664,9 +2664,9 @@ skill.package_path 和 skill_version.package_path 保存压缩包文件服务路
 ### 3.4.8 反馈指标规则
 
 1. 下载、点赞、点踩均写入操作日志。
-2. Skill 卡片、详情页、运营看板统一展示 downloads、likes、dislikes。
+2. Skill 卡片、详情页、运营管理统一展示 downloads、likes、dislikes。
 3. 市场列表支持按未评分、勋章和评分筛选。
-4. 反馈统计可按 T+1 口径进入运营看板。
+4. 反馈统计可按 T+1 口径进入运营管理。
 5. 用户点击下载时统一调用 `POST /api/skills/{id}/download`，不允许前端直接使用 `packagePath` 绕过下载统计。
 6. 下载成功后同步更新 `skill.downloads` 和当日 `skill_feedback_stat.downloads`。
 7. 单个 Skill 的下载趋势查询统一调用 `GET /api/skills/{id}/download-stats`。
@@ -2816,7 +2816,7 @@ rectangle "Agent Center Skill 市场" {
   usecase "审核同步申请" as UC_Review
   usecase "查看已完成审核" as UC_Done
   usecase "管理组织" as UC_Org
-  usecase "查看运营看板" as UC_Dashboard
+  usecase "查看运营管理" as UC_Dashboard
   usecase "Excel 导入" as UC_Excel
   usecase "质量评审" as UC_QualityReview
   usecase "评分 / 勋章标记" as UC_Badge
@@ -2882,7 +2882,7 @@ package "Agent Center Skill 市场" {
   component "上传解析" as UploadParse
   component "同步审核" as Approval
   component "组织管理" as OrgManage
-  component "运营看板" as Dashboard
+  component "运营管理" as Dashboard
   component "质量评审" as QualityReview
   component "反馈统计" as FeedbackStat
   component "分类映射" as CategoryMap
@@ -3147,7 +3147,7 @@ else (Agent Center Skill 市场)
   :聚合组织级 Skill、关联部门数、下载量;
 endif
 :写入 dashboard_metric;
-:运营看板查询;
+:运营管理查询;
 :展示 KPI、分布排行、TOP Skill;
 stop
 @enduml
@@ -3263,7 +3263,7 @@ Services --> Log
 | 重名提示     | 重名时提示修改 name 或从我的发布上传新版本               |
 | 状态口径统一 | 我的发布只展示个人级、组织级、组织审核中、组织已驳回     |
 | 审核中心分栏 | 待审核和已完成分开展示                                   |
-| 运营看板切换 | 扶摇系统 / Agent Center Skill 市场页内切换，避免页签过长 |
+| 运营管理切换 | 扶摇系统 / Agent Center Skill 市场页内切换，避免页签过长 |
 | 部门树交互   | 支持展开 / 合并，超出时内部滚动                          |
 | 质量评审     | 管理员按月、按部门集中评审，不依赖单个 Skill 详情页评分  |
 | 勋章展示     | 前台以小尺寸图形化勋章展示质量识别，减少文字噪声         |
@@ -3322,7 +3322,7 @@ Services --> Log
 | 市场列表查询   | P95 小于 1 秒                       |
 | Skill 详情查询 | P95 小于 1 秒                       |
 | 上传解析       | 20MB 以下压缩包 P95 小于 5 秒       |
-| 运营看板查询   | P95 小于 2 秒                       |
+| 运营管理查询   | P95 小于 2 秒                       |
 | 部门树渲染     | 500 个节点以内前端可流畅展开 / 折叠 |
 
 ## 4.7 可观测性 Observability
@@ -3352,9 +3352,9 @@ Services --> Log
 | 审核权限     | 非组织管理员不可审核，目标组织管理员可审核                                                    |
 | 组织管理     | 新建组织、配置组织、多个管理员解析                                                            |
 | 市场筛选     | 支持按组织、`departmentL1` 到 `departmentL6` 任意部门字段、单选分类、多选标签并集进行组合筛选 |
-| 运营看板     | 扶摇系统 / Agent Center Skill 市场切换、按数量 / 下载量切换                                   |
+| 运营管理     | 扶摇系统 / Agent Center Skill 市场切换、按数量 / 下载量切换                                   |
 | 运营明细表   | Skill 名称固定左列、下载量固定右列、横向滚动正常                                              |
-| 下载 / 赞踩  | 市场卡片、详情页、运营看板展示一致                                                            |
+| 下载 / 赞踩  | 市场卡片、详情页、运营管理展示一致                                                            |
 | 质量勋章     | 优秀 Skill、推荐复用、待优化、高分 Skill 展示正确                                             |
 | 勋章筛选     | 按勋章筛选、按未评分筛选结果正确                                                              |
 | 质量评审     | 按月份、部门、评审状态、关键词查询正确                                                        |
@@ -3447,13 +3447,13 @@ Services --> Log
 7. 审核中心区分待审核和已完成。
 8. 组织管理配置组织名称、组织 ID、组织管理员和状态。
 9. 任一组织管理员均具备市场管理员角色。
-10. 运营看板支持扶摇系统 / Agent Center Skill 市场切换。
+10. 运营管理支持扶摇系统 / Agent Center Skill 市场切换。
 11. 看板数据明确展示 T+1 口径。
 12. 市场卡片展示下载量、点赞量、点踩量和质量勋章。
 13. 市场总览支持按勋章和未评分筛选。
 14. 管理员可以在质量评审页签按月、按部门集中评审 Skill。
 15. 质量评审支持批量保存、导出清单和提交归档。
-16. 运营看板展示点赞量、点踩量和优秀 Skill 识别模块。
+16. 运营管理展示点赞量、点踩量和优秀 Skill 识别模块。
 17. 超级管理员可新增组织并修改全部组织配置。
 18. 普通管理员只能查看和修改自己管理的组织配置。
 19. 普通用户不能访问组织管理、审核中心、质量评审和超级管理员配置。
@@ -3636,7 +3636,7 @@ controller/skill/
 
 ### 4.4.3 审核与质量评审权限拦截
 
-审核、质量评审和运营看板均按组织范围过滤：
+审核、质量评审和运营管理均按组织范围过滤：
 
 1. `SUPER_ADMIN` 查询和操作全部组织数据。
 2. `ORG_ADMIN` 只能查询和操作 managedOrgIds 范围内的数据。

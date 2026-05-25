@@ -3,7 +3,7 @@ import fuyaoOpsDashboardJson from '../../../mock/opsDashboardDefault.json?raw';
 import type { OpsDashboardBundle } from '../../../utils/opsExcelImport';
 
 /**
- * 从 `src/mock/*.json` 打包进来的原文解析运营看板数据。
+ * 从 `src/mock/*.json` 打包进来的原文解析运营管理数据。
  * **公司系统** 始终通过本函数读 `opsDashboardCompanyDefault.json`（替换文件后需重新 dev/build）。
  * 扶摇默认走 `overview` 映射；`fuyao` 分支 JSON 仅作对照或测试。
  */

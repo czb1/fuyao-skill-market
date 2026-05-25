@@ -57,8 +57,8 @@ function buildBaseUrl(prefix: '/api' | '/api/skills'): string {
   return `${base}${prefix}`;
 }
 
-function buildFuyaoBaseUrl(): string {
-  return fuyao.replace(/\/+$/, '');
+function buildOtherBaseUrl(otherUrl: string): string {
+  return otherUrl.replace(/\/+$/, '');
 }
 
 function stripPrefix(url: unknown, prefix: string): string {
@@ -75,10 +75,7 @@ function stripPrefix(url: unknown, prefix: string): string {
   return path;
 }
 
-function tryMockThenAxios<T>(
-  channel: 'api' | 'skill' | 'fuyao' | 'direct',
-  requestConfig: AxiosRequestConfig,
-): Promise<T> {
+function tryMockThenAxios<T>(channel: string, requestConfig: AxiosRequestConfig): Promise<T> {
   const mock = maybeHandleSkillBaseMockRequest<T>(channel, requestConfig);
   if (mock) {
     return mock;
@@ -109,7 +106,7 @@ const httpRequest = {
   fuyao: <T = null>(config: AxiosRequestConfig): Promise<T> => {
     const requestConfig = {
       ...config,
-      baseURL: buildFuyaoBaseUrl(),
+      baseURL: buildOtherBaseUrl(fuyao),
       url: stripPrefix(config.url, ''),
     };
     return tryMockThenAxios<T>('fuyao', requestConfig);

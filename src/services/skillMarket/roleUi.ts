@@ -46,8 +46,8 @@ export function marketRoleCanCreateOrganization(role: CurrentUserRoleDto | null)
 }
 
 /**
- * 审核中心配套能力、运营看板 **Excel 导入** 等管理员能力（ORG_ADMIN / SUPER_ADMIN）。
- * 运营看板 **页签与只读内容** 全体用户可见；是否显示导入按钮请用本函数判断。
+ * 审核中心配套能力、运营管理 **Excel 导入** 等管理员能力（ORG_ADMIN / SUPER_ADMIN）。
+ * 运营管理 **页签与只读内容** 全体用户可见；是否显示导入按钮请用本函数判断。
  */
 export function marketRoleShowsOpsAndReview(role: CurrentUserRoleDto | null): boolean {
   return marketRoleShowsAdminPerspective(role);

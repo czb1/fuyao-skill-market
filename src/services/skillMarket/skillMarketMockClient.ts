@@ -895,7 +895,7 @@ export function createSkillMarketMockClient(initialSkills?: Skill[]): SkillMarke
           skillCount: skills.value.length,
           personalSkillCount: skills.value.filter((s) => (s.publish_level ?? '').includes('个人'))
             .length,
-          /** 扶摇侧：已发布为组织级、即同步到公司组织维度的 Skill 数量（与运营看板「组织级」KPI 一致） */
+          /** 扶摇侧：已发布为组织级、即同步到公司组织维度的 Skill 数量（与运营管理「组织级」KPI 一致） */
           verifiedSkillCount: orgLevelSkills.length,
           downloads: totalDl,
         },

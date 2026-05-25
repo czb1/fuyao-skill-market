@@ -522,7 +522,7 @@ export function createSkillMarketHttpClient(
     },
 
     /**
-     * 运营看板 Excel：前端自行解析；公司侧仅预览+下载 JSON。扶摇看板只读 `overview`，此处不调后端上传。
+     * 运营管理 Excel：前端自行解析；公司侧仅预览+下载 JSON。扶摇看板只读 `overview`，此处不调后端上传。
      */
     async postDashboardImportExcel(
       file: File,
@@ -551,7 +551,7 @@ export function createSkillMarketHttpClient(
       if (env.code !== 0 || !env.data) {
         return {
           code: env.code,
-          message: env.message || '扶摇运营看板：overview 接口失败',
+          message: env.message || '扶摇运营管理：overview 接口失败',
           data: emptyOpsDashboardBundle(),
         };
       }

@@ -149,7 +149,7 @@ export type SkillMarketClient = {
   ): Promise<ApiEnvelope<{ ok: boolean; importedRows?: number }>>;
 
   /**
-   * 运营看板 UI 聚合（与 Excel 导入结构一致）。
+   * 运营管理 UI 聚合（与 Excel 导入结构一致）。
    * `company`：仅读打包的 `opsDashboardCompanyDefault.json`，无 HTTP；`fuyao`：`GET /api/dashboard/overview?system=fuyao`（§3.3.13）再映射。
    */
   fetchOpsDashboardUi(system: 'fuyao' | 'company'): Promise<ApiEnvelope<OpsDashboardBundle>>;
