@@ -128,7 +128,10 @@ function sanitizeScoreInput(raw: string): string {
   const dotIndex = value.indexOf('.');
   if (dotIndex !== -1) {
     const integerPart = value.slice(0, dotIndex);
-    const decimalPart = value.slice(dotIndex + 1).replace(/\./g, '').slice(0, 2);
+    const decimalPart = value
+      .slice(dotIndex + 1)
+      .replace(/\./g, '')
+      .slice(0, 2);
     value = `${integerPart}.${decimalPart}`;
   }
 
@@ -254,9 +257,7 @@ const overallReviewDimensionDetail = computed(
   () => reviewDimensionDetails[overallReviewDimension.value],
 );
 const selectedPersonalMedalText = computed(() =>
-  selectedPersonalMedals.value.length
-    ? selectedPersonalMedals.value.join('、')
-    : '不授予个人勋章',
+  selectedPersonalMedals.value.length ? selectedPersonalMedals.value.join('、') : '不授予个人勋章',
 );
 
 function filterTaskCardsByKeyword(keyword: string) {
@@ -528,10 +529,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <section
-              class="expert-review expert-review--inline"
-              aria-labelledby="expert-title"
-            >
+            <section class="expert-review expert-review--inline" aria-labelledby="expert-title">
               <div class="expert-review__header">
                 <div>
                   <p class="review-hero__eyebrow">Expert Score Detail</p>
@@ -542,10 +540,7 @@ onMounted(async () => {
 
               <div class="expert-editor">
                 <div class="expert-dimension-summary">
-                  <div
-                    class="score-input-panel"
-                    :class="{ 'is-pending': !isCurrentTaskReviewed }"
-                  >
+                  <div class="score-input-panel" :class="{ 'is-pending': !isCurrentTaskReviewed }">
                     <span class="score-input-panel__caption">专家评分</span>
                     <div class="score-input-panel__field">
                       <template v-if="isScoreEditing">
@@ -595,83 +590,77 @@ onMounted(async () => {
                       <template v-if="!isCurrentTaskReviewed">
                         该 Skill 尚未评审，点击编辑图标输入 0–100 分
                       </template>
-                      <template v-else>
-                        点击编辑图标修改分数，输入完成后点击空白处保存
-                      </template>
+                      <template v-else> 点击编辑图标修改分数，输入完成后点击空白处保存 </template>
                     </p>
                   </div>
                 </div>
 
                 <div class="expert-editor__controls">
-                    <div class="medal-select">
-                      <span class="medal-select__label">是否授予个人勋章</span>
-                      <div class="medal-select__control">
-                        <button
-                          class="medal-select__button"
-                          type="button"
-                          :aria-expanded="isMedalSelectOpen"
-                          aria-haspopup="true"
-                          @click="isMedalSelectOpen = !isMedalSelectOpen"
+                  <div class="medal-select">
+                    <span class="medal-select__label">是否授予个人勋章</span>
+                    <div class="medal-select__control">
+                      <button
+                        class="medal-select__button"
+                        type="button"
+                        :aria-expanded="isMedalSelectOpen"
+                        aria-haspopup="true"
+                        @click="isMedalSelectOpen = !isMedalSelectOpen"
+                      >
+                        {{ selectedPersonalMedalText }}
+                      </button>
+                      <div
+                        v-if="isMedalSelectOpen"
+                        class="medal-select__menu"
+                        role="group"
+                        aria-label="个人勋章"
+                      >
+                        <label
+                          v-for="option in medalOptions"
+                          :key="option"
+                          class="medal-select__option"
                         >
-                          {{ selectedPersonalMedalText }}
-                        </button>
-                        <div
-                          v-if="isMedalSelectOpen"
-                          class="medal-select__menu"
-                          role="group"
-                          aria-label="个人勋章"
-                        >
-                          <label
-                            v-for="option in medalOptions"
-                            :key="option"
-                            class="medal-select__option"
-                          >
-                            <input
-                              v-model="selectedPersonalMedals"
-                              type="checkbox"
-                              :value="option"
-                            />
-                            <span>{{ option }}</span>
-                          </label>
-                        </div>
+                          <input v-model="selectedPersonalMedals" type="checkbox" :value="option" />
+                          <span>{{ option }}</span>
+                        </label>
                       </div>
                     </div>
-                    <div class="green-channel-select">
-                      <span class="green-channel-select__label">是否开通绿色通道</span>
-                      <div class="green-channel-select__control">
+                  </div>
+                  <div class="green-channel-select">
+                    <span class="green-channel-select__label">是否开通绿色通道</span>
+                    <div class="green-channel-select__control">
+                      <button
+                        class="green-channel-select__button"
+                        type="button"
+                        :aria-expanded="isGreenChannelSelectOpen"
+                        aria-haspopup="listbox"
+                        @click="isGreenChannelSelectOpen = !isGreenChannelSelectOpen"
+                      >
+                        {{ selectedGreenChannel }}
+                      </button>
+                      <div
+                        v-if="isGreenChannelSelectOpen"
+                        class="green-channel-select__menu"
+                        role="listbox"
+                        aria-label="绿色通道选择"
+                      >
                         <button
-                          class="green-channel-select__button"
+                          v-for="option in greenChannelOptions"
+                          :key="option"
                           type="button"
-                          :aria-expanded="isGreenChannelSelectOpen"
-                          aria-haspopup="listbox"
-                          @click="isGreenChannelSelectOpen = !isGreenChannelSelectOpen"
+                          class="green-channel-select__option"
+                          :class="{ 'is-selected': selectedGreenChannel === option }"
+                          role="option"
+                          :aria-selected="selectedGreenChannel === option"
+                          @click="
+                            selectedGreenChannel = option;
+                            isGreenChannelSelectOpen = false;
+                          "
                         >
-                          {{ selectedGreenChannel }}
+                          {{ option }}
                         </button>
-                        <div
-                          v-if="isGreenChannelSelectOpen"
-                          class="green-channel-select__menu"
-                          role="listbox"
-                          aria-label="绿色通道选择"
-                        >
-                          <button
-                            v-for="option in greenChannelOptions"
-                            :key="option"
-                            type="button"
-                            class="green-channel-select__option"
-                            :class="{ 'is-selected': selectedGreenChannel === option }"
-                            role="option"
-                            :aria-selected="selectedGreenChannel === option"
-                            @click="
-                              selectedGreenChannel = option;
-                              isGreenChannelSelectOpen = false;
-                            "
-                          >
-                            {{ option }}
-                          </button>
-                        </div>
                       </div>
                     </div>
+                  </div>
                 </div>
                 <label class="review-textarea">
                   <span>{{ overallReviewDimension }}详情</span>
@@ -685,11 +674,7 @@ onMounted(async () => {
             <section class="side-panel">
               <div class="side-panel__header">
                 <h2>算力 / Token 绿色通道</h2>
-                <button
-                  type="button"
-                  aria-label="增加算力"
-                  @click="openComputeChannelModal"
-                >
+                <button type="button" aria-label="增加算力" @click="openComputeChannelModal">
                   +
                 </button>
               </div>
@@ -716,13 +701,7 @@ onMounted(async () => {
             <section class="side-panel">
               <div class="side-panel__header">
                 <h2>勋章榜单</h2>
-                <button
-                  type="button"
-                  aria-label="发放勋章"
-                  @click="openMedalAwardModal"
-                >
-                  +
-                </button>
+                <button type="button" aria-label="发放勋章" @click="openMedalAwardModal">+</button>
               </div>
               <div class="medal-list">
                 <article v-for="row in medalRows" :key="row.name" class="medal-row">
@@ -888,7 +867,9 @@ onMounted(async () => {
                 placeholder="搜索 Skill 名称或工号"
                 autocomplete="off"
               />
-              <p v-if="!filteredSkillOptions.length" class="medal-award-empty">未找到匹配的 Skill</p>
+              <p v-if="!filteredSkillOptions.length" class="medal-award-empty">
+                未找到匹配的 Skill
+              </p>
               <ul v-else class="medal-award-skill-list" role="radiogroup" aria-label="Skill 列表">
                 <li v-for="skill in filteredSkillOptions" :key="skill.id">
                   <label
@@ -918,11 +899,7 @@ onMounted(async () => {
                   :key="medalType"
                   class="medal-award-type-option"
                 >
-                  <input
-                    v-model="selectedAwardMedalTypes"
-                    type="checkbox"
-                    :value="medalType"
-                  />
+                  <input v-model="selectedAwardMedalTypes" type="checkbox" :value="medalType" />
                   <span>{{ medalType }}</span>
                 </label>
               </div>
@@ -938,7 +915,11 @@ onMounted(async () => {
             </label>
 
             <div class="medal-award-form__actions">
-              <button type="button" class="medal-award-btn medal-award-btn--ghost" @click="closeMedalAwardModal">
+              <button
+                type="button"
+                class="medal-award-btn medal-award-btn--ghost"
+                @click="closeMedalAwardModal"
+              >
                 取消
               </button>
               <button
@@ -959,11 +940,7 @@ onMounted(async () => {
       class="history-drawer-backdrop"
       @click="isHistoryDrawerOpen = false"
     ></div>
-    <aside
-      v-if="isHistoryDrawerOpen"
-      class="history-drawer"
-      aria-label="历史评审记录"
-    >
+    <aside v-if="isHistoryDrawerOpen" class="history-drawer" aria-label="历史评审记录">
       <header class="history-drawer__header">
         <div>
           <p>历史评审记录</p>
@@ -980,31 +957,19 @@ onMounted(async () => {
       </header>
 
       <div class="history-drawer__body">
-        <article
-          v-for="record in reviewHistoryRecords"
-          :key="record.id"
-          class="history-record"
-        >
+        <article v-for="record in reviewHistoryRecords" :key="record.id" class="history-record">
           <div class="history-record__topline">
             <strong>{{ record.reviewer }}</strong>
             <span>{{ record.reviewedAt }}</span>
           </div>
           <p>{{ record.summary }}</p>
           <div class="history-score-list">
-            <div
-              v-for="score in record.scores"
-              :key="score.dimension"
-              class="history-score-item"
-            >
+            <div v-for="score in record.scores" :key="score.dimension" class="history-score-item">
               <div>
                 <span>{{ score.dimension }}</span>
                 <strong>{{ score.score }}分</strong>
               </div>
-              <button
-                class="history-suggestion"
-                type="button"
-                :title="score.suggestion"
-              >
+              <button class="history-suggestion" type="button" :title="score.suggestion">
                 优化建议
                 <span class="history-suggestion__tip">{{ score.suggestion }}</span>
               </button>
