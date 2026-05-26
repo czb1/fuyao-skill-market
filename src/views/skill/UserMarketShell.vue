@@ -3781,77 +3781,76 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               </section>
 
               <section class="ops-card ops-detail-table-card">
-                <div class="ops-card-body">
-                  <div class="ops-skill-table ops-dept-skill-table">
-                    <div
-                      v-if="selectedDeptSkillRows.length === 0"
-                      class="ops-empty-state ops-detail-empty-state"
-                    >
-                      <strong>暂无 Skill 明细</strong>
-                      <span>选择有数据的部门层级后，将展示该层级下的 Skill 列表。</span>
-                    </div>
-                    <div v-else class="ops-skill-table-wrap">
-                      <table class="table ops-detail-table">
-                        <thead>
-                          <tr>
-                            <th class="col-name sticky-name">
-                              <span class="cell-ellipsis" title="Skill 名称">Skill 名称</span>
-                            </th>
-                            <th class="col-desc">
-                              <span class="cell-ellipsis" title="描述">描述</span>
-                            </th>
-                            <th class="col-owner">
-                              <span class="cell-ellipsis" title="发布人">发布人</span>
-                            </th>
-                            <th class="col-download sticky-download">
-                              <span class="cell-ellipsis" title="下载量">下载量</span>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr
-                            v-for="(row, idx) in selectedDeptSkillRows"
-                            :key="`dept-${row.name}-${row.dept}-${idx}`"
-                          >
-                            <td class="col-name sticky-name">
-                              <div class="skill-name-cell">
-                                <span
-                                  v-if="idx < 3"
-                                  class="dept-rank-flame"
-                                  :class="`rank-${idx + 1}`"
-                                  aria-hidden="true"
-                                >
-                                  <span class="dept-rank-flame-core" />
-                                </span>
-                                <span class="skill-row-dot">{{ idx + 1 }}</span>
-                                <span class="cell-ellipsis" :title="row.name">{{ row.name }}</span>
-                              </div>
-                            </td>
-                            <td class="col-desc">
-                              <span class="cell-ellipsis desc-text" :title="row.description">
-                                {{ row.description }}
+                <div class="ops-skill-table ops-dept-skill-table">
+                  <div
+                    v-if="selectedDeptSkillRows.length === 0"
+                    class="ops-empty-state ops-detail-empty-state"
+                  >
+                    <strong>暂无 Skill 明细</strong>
+                    <span>选择有数据的部门层级后，将展示该层级下的 Skill 列表。</span>
+                  </div>
+                  <div v-else class="ops-skill-table-wrap">
+                    <table class="table ops-detail-table">
+                      <thead>
+                        <tr>
+                          <th class="col-name sticky-name">
+                            <span class="cell-ellipsis" title="Skill 名称">Skill 名称</span>
+                          </th>
+                          <th class="col-desc">
+                            <span class="cell-ellipsis" title="描述">描述</span>
+                          </th>
+                          <th class="col-owner">
+                            <span class="cell-ellipsis" title="发布人">发布人</span>
+                          </th>
+                          <th class="col-download sticky-download">
+                            <span class="cell-ellipsis" title="下载量">下载量</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="(row, idx) in selectedDeptSkillRows"
+                          :key="`dept-${row.name}-${row.dept}-${idx}`"
+                        >
+                          <td class="col-name sticky-name">
+                            <div class="skill-name-cell">
+                              <span
+                                v-if="idx < 3"
+                                class="dept-rank-flame"
+                                :class="`rank-${idx + 1}`"
+                                aria-hidden="true"
+                              >
+                                <span class="dept-rank-flame-core" />
                               </span>
-                            </td>
-                            <td class="col-owner">
-                              <span class="owner-pill" :title="opsSkillOwner(row)">
-                                {{ opsSkillOwner(row) }}
-                              </span>
-                            </td>
-                            <td class="col-download sticky-download">
-                              <span class="download-pill" :title="formatOpsNumber(row.downloads)">
-                                {{ formatOpsNumber(row.downloads) }}
-                              </span>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                              <span class="skill-row-dot">{{ idx + 1 }}</span>
+                              <span class="cell-ellipsis" :title="row.name">{{ row.name }}</span>
+                            </div>
+                          </td>
+                          <td class="col-desc">
+                            <span class="cell-ellipsis desc-text" :title="row.description">
+                              {{ row.description }}
+                            </span>
+                          </td>
+                          <td class="col-owner">
+                            <span class="owner-pill" :title="opsSkillOwner(row)">
+                              {{ opsSkillOwner(row) }}
+                            </span>
+                          </td>
+                          <td class="col-download sticky-download">
+                            <span class="download-pill" :title="formatOpsNumber(row.downloads)">
+                              {{ formatOpsNumber(row.downloads) }}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </section>
             </div>
 
             <div
+              v-if="uiOrgBarsSorted.length"
               class="ops-pair-row org-row"
               :class="{ 'org-row-empty': uiOrgBarsSorted.length === 0 }"
             >
@@ -3891,71 +3890,69 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               </section>
 
               <section v-if="uiOrgBarsSorted.length > 0" class="ops-card ops-detail-table-card">
-                <div class="ops-card-body">
-                  <div class="ops-skill-table ops-org-skill-table">
-                    <div
-                      v-if="selectedOrgSkillRows.length === 0"
-                      class="ops-empty-state ops-detail-empty-state"
-                    >
-                      <strong>暂无组织级 Skill 明细</strong>
-                      <span>选择有数据的组织条目后，将展示该组织级 Skill 列表。</span>
-                    </div>
-                    <div v-else class="ops-skill-table-wrap">
-                      <table class="table ops-detail-table">
-                        <thead>
-                          <tr>
-                            <th class="col-name sticky-name">
-                              <span class="cell-ellipsis" title="Skill 名称">Skill 名称</span>
-                            </th>
-                            <th class="col-desc">
-                              <span class="cell-ellipsis" title="描述">描述</span>
-                            </th>
-                            <th class="col-owner">
-                              <span class="cell-ellipsis" title="发布人">发布人</span>
-                            </th>
-                            <th class="col-download sticky-download">
-                              <span class="cell-ellipsis" title="下载量">下载量</span>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr
-                            v-for="(row, idx) in selectedOrgSkillRows"
-                            :key="`org-${row.name}-${row.publishName}-${idx}`"
-                          >
-                            <td class="col-name sticky-name">
-                              <div class="skill-name-cell">
-                                <span
-                                  v-if="idx < 3"
-                                  class="dept-rank-flame"
-                                  :class="`rank-${idx + 1}`"
-                                  aria-hidden="true"
-                                >
-                                  <span class="dept-rank-flame-core" />
-                                </span>
-                                <span class="skill-row-dot">{{ idx + 1 }}</span>
-                                <span class="cell-ellipsis" :title="row.name">{{ row.name }}</span>
-                              </div>
-                            </td>
-                            <td class="col-desc">
-                              <span class="cell-ellipsis desc-text" :title="row.description">
-                                {{ row.description }}
+                <div class="ops-skill-table ops-org-skill-table">
+                  <div
+                    v-if="selectedOrgSkillRows.length === 0"
+                    class="ops-empty-state ops-detail-empty-state"
+                  >
+                    <strong>暂无组织级 Skill 明细</strong>
+                    <span>选择有数据的组织条目后，将展示该组织级 Skill 列表。</span>
+                  </div>
+                  <div v-else class="ops-skill-table-wrap">
+                    <table class="table ops-detail-table">
+                      <thead>
+                        <tr>
+                          <th class="col-name sticky-name">
+                            <span class="cell-ellipsis" title="Skill 名称">Skill 名称</span>
+                          </th>
+                          <th class="col-desc">
+                            <span class="cell-ellipsis" title="描述">描述</span>
+                          </th>
+                          <th class="col-owner">
+                            <span class="cell-ellipsis" title="发布人">发布人</span>
+                          </th>
+                          <th class="col-download sticky-download">
+                            <span class="cell-ellipsis" title="下载量">下载量</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="(row, idx) in selectedOrgSkillRows"
+                          :key="`org-${row.name}-${row.publishName}-${idx}`"
+                        >
+                          <td class="col-name sticky-name">
+                            <div class="skill-name-cell">
+                              <span
+                                v-if="idx < 3"
+                                class="dept-rank-flame"
+                                :class="`rank-${idx + 1}`"
+                                aria-hidden="true"
+                              >
+                                <span class="dept-rank-flame-core" />
                               </span>
-                            </td>
-                            <td class="col-owner">
-                              <span class="owner-pill" :title="opsSkillOwner(row)">
-                                {{ opsSkillOwner(row) }}
-                              </span>
-                            </td>
-                            <td class="col-download sticky-download">
-                              <span class="download-pill" :title="formatOpsNumber(row.downloads)">
-                                {{ formatOpsNumber(row.downloads) }}
-                              </span>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                              <span class="skill-row-dot">{{ idx + 1 }}</span>
+                              <span class="cell-ellipsis" :title="row.name">{{ row.name }}</span>
+                            </div>
+                          </td>
+                          <td class="col-desc">
+                            <span class="cell-ellipsis desc-text" :title="row.description">
+                              {{ row.description }}
+                            </span>
+                          </td>
+                          <td class="col-owner">
+                            <span class="owner-pill" :title="opsSkillOwner(row)">
+                              {{ opsSkillOwner(row) }}
+                            </span>
+                          </td>
+                          <td class="col-download sticky-download">
+                            <span class="download-pill" :title="formatOpsNumber(row.downloads)">
+                              {{ formatOpsNumber(row.downloads) }}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </section>
@@ -3968,35 +3965,33 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                   <p>{{ opsTopSubTitle }}</p>
                 </div>
               </div>
-              <div class="ops-card-body">
-                <div class="ops-top-list" role="list">
-                  <div v-if="uiTopSkillsByDl.length === 0" class="ops-empty-state ops-top-empty">
-                    <strong>{{ opsEmptyText }}</strong>
-                    <span>暂无下载排行数据。</span>
+              <div class="ops-top-list" role="list">
+                <div v-if="uiTopSkillsByDl.length === 0" class="ops-empty-state ops-top-empty">
+                  <strong>{{ opsEmptyText }}</strong>
+                  <span>暂无下载排行数据。</span>
+                </div>
+                <div
+                  v-for="(item, idx) in uiTopSkillsByDl"
+                  :key="`${item.rank}-${item.name}-${item.downloads}`"
+                  class="ops-top-item"
+                  role="listitem"
+                >
+                  <div class="ops-rank-wrap">
+                    <span
+                      v-if="idx < 3"
+                      class="dept-rank-flame"
+                      :class="`rank-${idx + 1}`"
+                      aria-hidden="true"
+                    >
+                      <span class="dept-rank-flame-core" />
+                    </span>
+                    <div class="ops-rank">{{ item.rank }}</div>
                   </div>
-                  <div
-                    v-for="(item, idx) in uiTopSkillsByDl"
-                    :key="`${item.rank}-${item.name}-${item.downloads}`"
-                    class="ops-top-item"
-                    role="listitem"
-                  >
-                    <div class="ops-rank-wrap">
-                      <span
-                        v-if="idx < 3"
-                        class="dept-rank-flame"
-                        :class="`rank-${idx + 1}`"
-                        aria-hidden="true"
-                      >
-                        <span class="dept-rank-flame-core" />
-                      </span>
-                      <div class="ops-rank">{{ item.rank }}</div>
-                    </div>
-                    <div>
-                      <b>{{ item.name }}</b>
-                      <small :title="item.dept">{{ opsSkillOwner(item) }} · {{ item.dept }}</small>
-                    </div>
-                    <div class="ops-download">{{ formatOpsNumber(item.downloads) }}</div>
+                  <div>
+                    <b>{{ item.name }}</b>
+                    <small :title="item.dept">{{ opsSkillOwner(item) }} · {{ item.dept }}</small>
                   </div>
+                  <div class="ops-download">{{ formatOpsNumber(item.downloads) }}</div>
                 </div>
               </div>
             </section>
