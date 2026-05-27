@@ -179,6 +179,9 @@ const helpLink = () => {
 const innerTab = ref<UserInnerTab>(routeTabFromQuery(route.query.tab));
 const uploadOpen = ref(false);
 const search = ref('');
+const hotSearch = ref('');
+const hotSkillItems = ref<any[]>([]);
+const hotSkillsLoading = ref(false);
 /** Mock：组织展示名；HTTP：组织 id 字符串（对接 `orgId`） */
 const levelFilter = ref('all');
 /** 市场部门级联：路径各段对应 `departmentL1`～`departmentL6`（与设计文档 §3.3.3 一致，多字段 AND） */
@@ -189,6 +192,8 @@ const marketDeptCascaderPanelRef = ref<HTMLElement | null>(null);
 /** 级联面板挂到 body + fixed，按触发器靠左且不超出视口，避免撑开页面滚动容器 */
 const marketDeptPanelLayout = ref<{ left: number; top: number; maxWidth: number } | null>(null);
 let deptPanelScrollCleanup: (() => void) | null = null;
+let overviewDimensionPanelCleanup: (() => void) | null = null;
+let overviewDimensionResizeFrame = 0;
 const categoryFilter = ref('all');
 const businessDimensions = ref<BusinessDimensionDto[]>([]);
 const businessDimensionLoading = ref(false);
@@ -198,6 +203,12 @@ const overviewSort = ref<'time' | 'downloads' | 'rating'>('downloads');
 /** 市场总览左侧标签区：标签过多时由用户展开 */
 const overviewTagListExpanded = ref(false);
 const overviewAdvancedOpen = ref(false);
+const overviewDimensionMoreOpen = ref(false);
+const overviewDimensionOverflow = ref(false);
+const overviewDimensionRowRef = ref<HTMLElement | null>(null);
+const overviewDimensionInlineRef = ref<HTMLElement | null>(null);
+const overviewDimensionDropdownRef = ref<HTMLElement | null>(null);
+const overviewDimensionDropdownStyle = ref<CSSProperties>({});
 const tabPanelRef = ref<HTMLElement | null>(null);
 const tabPanelMinHeight = ref(0);
 const marketContentRef = ref<HTMLElement | null>(null);
@@ -674,6 +685,29 @@ watch(overviewDeptCascaderOpen, (open) => {
   }
 });
 
+watch(overviewDimensionMoreOpen, (open) => {
+  if (overviewDimensionPanelCleanup) {
+    overviewDimensionPanelCleanup();
+    overviewDimensionPanelCleanup = null;
+  }
+  if (open) {
+    void nextTick(() => {
+      updateOverviewDimensionDropdownLayout();
+    });
+    const onScroll = (): void => {
+      updateOverviewDimensionDropdownLayout();
+    };
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    overviewDimensionPanelCleanup = (): void => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  } else {
+    overviewDimensionDropdownStyle.value = {};
+  }
+});
+
 function onOverviewDeptCascadeChange(levelIndex: number, raw: string): void {
   if (!raw) {
     overviewMarketDeptSegments.value = overviewMarketDeptSegments.value.slice(0, levelIndex);
@@ -697,6 +731,86 @@ const categoryOptions = computed(() =>
   businessDimensionOptions.value.map((item) => item.dimensionName),
 );
 
+function scheduleOverviewDimensionOverflowCheck(): void {
+  if (overviewDimensionResizeFrame) {
+    window.cancelAnimationFrame(overviewDimensionResizeFrame);
+  }
+  overviewDimensionResizeFrame = window.requestAnimationFrame(() => {
+    overviewDimensionResizeFrame = 0;
+    const inline = overviewDimensionInlineRef.value;
+    if (!inline) {
+      overviewDimensionOverflow.value = false;
+      overviewDimensionMoreOpen.value = false;
+      return;
+    }
+    const hasOverflow = inline.scrollWidth > inline.clientWidth + 2;
+    overviewDimensionOverflow.value = hasOverflow;
+    if (!hasOverflow) {
+      overviewDimensionMoreOpen.value = false;
+    }
+    if (overviewDimensionMoreOpen.value) {
+      updateOverviewDimensionDropdownLayout();
+    }
+  });
+}
+
+function updateOverviewDimensionDropdownLayout(): void {
+  const row = overviewDimensionRowRef.value;
+  if (!row) {
+    overviewDimensionDropdownStyle.value = {};
+    return;
+  }
+  const rect = row.getBoundingClientRect();
+  const margin = 16;
+  const width = Math.min(760, Math.max(360, rect.width));
+  const left = Math.min(Math.max(margin, rect.left), Math.max(margin, window.innerWidth - width - margin));
+  const top = Math.min(rect.bottom + 8, window.innerHeight - 220);
+  overviewDimensionDropdownStyle.value = {
+    position: 'fixed',
+    left: `${Math.floor(left)}px`,
+    top: `${Math.floor(Math.max(margin, top))}px`,
+    width: `${Math.floor(width)}px`,
+    maxHeight: `${Math.max(220, Math.floor(window.innerHeight - top - margin))}px`,
+    zIndex: 3600,
+  };
+}
+
+function toggleOverviewDimensionMore(): void {
+  overviewDimensionMoreOpen.value = !overviewDimensionMoreOpen.value;
+  if (overviewDimensionMoreOpen.value) {
+    void nextTick(() => {
+      updateOverviewDimensionDropdownLayout();
+    });
+  }
+}
+
+function closeOverviewDimensionMore(): void {
+  overviewDimensionMoreOpen.value = false;
+}
+
+function onOverviewDimensionDocDown(ev: MouseEvent): void {
+  if (!overviewDimensionMoreOpen.value) {
+    return;
+  }
+  const t = ev.target as Node;
+  if (overviewDimensionRowRef.value?.contains(t) || overviewDimensionDropdownRef.value?.contains(t)) {
+    return;
+  }
+  closeOverviewDimensionMore();
+}
+
+function onOverviewDimensionKeydown(ev: KeyboardEvent): void {
+  if (overviewDimensionMoreOpen.value && ev.key === 'Escape') {
+    closeOverviewDimensionMore();
+  }
+}
+
+watch([businessDimensionOptions, innerTab], () => {
+  void nextTick(() => {
+    scheduleOverviewDimensionOverflowCheck();
+  });
+});
+
 const tagOptions = computed(() => {
   let opts = new Set<string>();
   for (const s of newSkills.value) {
@@ -705,6 +819,201 @@ const tagOptions = computed(() => {
     }
   }
   return [...opts].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+});
+
+function hotSkillDownloadCount(skill: any): number {
+  const raw = skill?.downloads ?? skill?.download_count ?? 0;
+  const parsed = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatHotNumber(value: string | number): string {
+  const parsed =
+    typeof value === 'number' ? value : Number.parseInt(String(value).replace(/,/g, ''), 10);
+  if (!Number.isFinite(parsed)) {
+    return String(value ?? '-');
+  }
+  if (parsed >= 10000) {
+    const wan = parsed / 10000;
+    return `${Number.isInteger(wan) ? wan : wan.toFixed(1).replace(/\.0$/, '')}万`;
+  }
+  return parsed.toLocaleString('zh-CN');
+}
+
+function hotSkillName(skill: any): string {
+  return String(skill?.name ?? skill?.skill_id ?? '未命名 Skill');
+}
+
+function hotSkillDesc(skill: any): string {
+  return String(skill?.description ?? skill?.requirements ?? '暂无描述');
+}
+
+function hotSkillLevel(skill: any): string {
+  return String(skill?.level ?? skill?.publish_level ?? skill?.status ?? '未分级');
+}
+
+function hotSkillLevelRaw(skill: any): string {
+  return String(skill?.publish_level ?? skill?.level ?? skill?.tagOrg ?? '').trim();
+}
+
+function hotSkillOwner(skill: any): string {
+  return String(skill?.createdBy ?? skill?.author ?? '未配置创建人').trim() || '未配置创建人';
+}
+
+function hotSkillCategory(skill: any): string {
+  return String(skill?.tagFunctional ?? skill?.category ?? skill?.categoryGroupName ?? '').trim();
+}
+
+function hotSkillOrg(skill: any): string {
+  return String(skill?.orgName ?? skill?.publish_name ?? skill?.publisher ?? '市场');
+}
+
+function hotSkillDept(skill: any): string {
+  if (hotSkillLevelRaw(skill).includes('组织')) {
+    return String(skill?.orgName ?? skill?.publish_name ?? '').trim() || '未配置组织';
+  }
+  const deptLevels = [
+    skill?.departmentL6,
+    skill?.departmentL5,
+    skill?.departmentL4,
+    skill?.departmentL3,
+    skill?.departmentL2,
+    skill?.departmentL1,
+  ];
+  const directDept = deptLevels.map((item) => String(item ?? '').trim()).find(Boolean);
+  if (directDept) {
+    return directDept;
+  }
+  const raw = String(skill?.dept_name ?? '').trim();
+  const parts = raw
+    .split(/[/>｜|]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return parts[parts.length - 1] || raw || '未配置部门';
+}
+
+function hotSkillTags(skill: any): string[] {
+  const raw = skill?.tags;
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((tag) => String(tag).trim()).filter(Boolean))];
+  }
+  return [
+    ...new Set(
+      String(raw ?? '')
+        .split(/[,，;；\s]+/)
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function hotSkillShownTags(skill: any): string[] {
+  return hotSkillTags(skill).slice(0, 2);
+}
+
+function hotSkillExtraTagCount(skill: any): number {
+  return Math.max(0, hotSkillTags(skill).length - hotSkillShownTags(skill).length);
+}
+
+function hotSkillScopeLabel(skill: any): string {
+  const level = hotSkillLevelRaw(skill);
+  if (level.includes('组织')) {
+    const orgName = String(skill?.orgName ?? skill?.publish_name ?? '').trim();
+    return orgName ? `组织级 · ${orgName}` : '组织级';
+  }
+  if (level.includes('个人')) {
+    return '个人级';
+  }
+  return level;
+}
+
+function hotSkillScopeKind(skill: any): 'org' | 'personal' | 'other' {
+  const level = hotSkillLevelRaw(skill);
+  if (level.includes('组织')) {
+    return 'org';
+  }
+  if (level.includes('个人')) {
+    return 'personal';
+  }
+  return 'other';
+}
+
+function hotSkillRatingValue(skill: any): number {
+  const parsed = Number(skill?.rating ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function hotSkillRatingLabel(skill: any): string {
+  const rating = hotSkillRatingValue(skill);
+  return rating > 0 ? rating.toFixed(1) : '未评分';
+}
+
+function hotSkillQualityBadges(skill: any): { label: string; kind: 'gold' | 'blue' | 'gray' }[] {
+  const badges: { label: string; kind: 'gold' | 'blue' | 'gray' }[] = [];
+  const rating = hotSkillRatingValue(skill);
+  const downloads = hotSkillDownloadCount(skill);
+  if (rating >= 4.7) {
+    badges.push({ label: '优秀', kind: 'gold' });
+  }
+  if (downloads >= 1000) {
+    badges.push({ label: '复用', kind: 'blue' });
+  }
+  if (rating > 0 && rating < 4.2) {
+    badges.push({ label: '优化', kind: 'gray' });
+  }
+  return badges;
+}
+
+function hotSkillIconTone(skill: any): string {
+  const text = `${hotSkillCategory(skill)}${skill?.skill_id ?? ''}${hotSkillName(skill)}`;
+  if (/review|评审|检查/i.test(text)) return 'tone-3';
+  if (/log|ops|运维|维护/i.test(text)) return 'tone-4';
+  if (/api|接口|开发/i.test(text)) return 'tone-2';
+  if (/pdf|文档|办公|周报|会议/i.test(text)) return 'tone-1';
+  return 'tone-1';
+}
+
+function hotSkillInitial(skill: any): string {
+  const title = hotSkillName(skill).trim();
+  return title ? title.slice(0, 1).toUpperCase() : 'S';
+}
+
+function hotSkillSearchText(skill: any): string {
+  return [
+    hotSkillName(skill),
+    hotSkillDesc(skill),
+    hotSkillOwner(skill),
+    hotSkillDept(skill),
+    hotSkillCategory(skill),
+    hotSkillOrg(skill),
+    hotSkillLevel(skill),
+    hotSkillScopeLabel(skill),
+    hotSkillTags(skill).join(' '),
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+
+const hotSkillSource = computed(() => {
+  if (hotSkillItems.value.length > 0) {
+    return hotSkillItems.value;
+  }
+  if (newSkills.value.length > 0) {
+    return newSkills.value;
+  }
+  return skills.value;
+});
+
+const hotSkillResults = computed(() => {
+  const q = hotSearch.value.trim().toLowerCase();
+  return [...hotSkillSource.value]
+    .filter((skill) => !q || hotSkillSearchText(skill).includes(q))
+    .sort(
+      (a, b) =>
+        hotSkillDownloadCount(b) - hotSkillDownloadCount(a) ||
+        hotSkillName(a).localeCompare(hotSkillName(b), 'zh-Hans-CN'),
+    )
+    .slice(0, 6);
 });
 
 const showOverviewTagExpandToggle = computed(
@@ -717,6 +1026,13 @@ const overviewTagListExpandedUi = computed(() => {
   }
   return overviewTagListExpanded.value;
 });
+
+function toggleOverviewAdvancedPanel(): void {
+  overviewAdvancedOpen.value = !overviewAdvancedOpen.value;
+  if (!overviewAdvancedOpen.value) {
+    overviewDeptCascaderOpen.value = false;
+  }
+}
 
 const tabPanelFillStyle = computed(() => {
   const h = tabPanelMinHeight.value > 0 ? `${tabPanelMinHeight.value}px` : undefined;
@@ -925,6 +1241,12 @@ onMounted(async () => {
   }
   document.addEventListener('mousedown', onMarketDeptCascaderDocDown);
   document.addEventListener('keydown', onMarketDeptCascaderKeydown);
+  document.addEventListener('mousedown', onOverviewDimensionDocDown);
+  document.addEventListener('keydown', onOverviewDimensionKeydown);
+  window.addEventListener('resize', scheduleOverviewDimensionOverflowCheck);
+  void nextTick(() => {
+    scheduleOverviewDimensionOverflowCheck();
+  });
 });
 
 onBeforeUnmount(() => {
@@ -932,14 +1254,22 @@ onBeforeUnmount(() => {
   closeDetailDeleteConfirm();
   deptPanelScrollCleanup?.();
   deptPanelScrollCleanup = null;
+  overviewDimensionPanelCleanup?.();
+  overviewDimensionPanelCleanup = null;
   document.removeEventListener('mousedown', onMarketDeptCascaderDocDown);
   document.removeEventListener('keydown', onMarketDeptCascaderKeydown);
+  document.removeEventListener('mousedown', onOverviewDimensionDocDown);
+  document.removeEventListener('keydown', onOverviewDimensionKeydown);
+  window.removeEventListener('resize', scheduleOverviewDimensionOverflowCheck);
   if (overviewScrollRaf) {
     window.cancelAnimationFrame(overviewScrollRaf);
     overviewScrollRaf = 0;
   }
   if (overviewPageSizeFrame) {
     window.cancelAnimationFrame(overviewPageSizeFrame);
+  }
+  if (overviewDimensionResizeFrame) {
+    window.cancelAnimationFrame(overviewDimensionResizeFrame);
   }
 });
 
@@ -1173,6 +1503,11 @@ async function setCategoryFilter(value: string): void {
   }
 }
 
+async function setCategoryFilterFromDropdown(value: string): Promise<void> {
+  await setCategoryFilter(value);
+  closeOverviewDimensionMore();
+}
+
 async function toggleTagFilter(tag: string): void {
   selectedTags.value = selectedTags.value.includes(tag)
     ? selectedTags.value.filter((item) => item !== tag)
@@ -1290,6 +1625,32 @@ const loadHotSkillNums = async () => {
     }
   });
 };
+
+async function loadHotSkillCards(): Promise<void> {
+  hotSkillsLoading.value = true;
+  try {
+    const res = await skillBaseService.querySkillList({
+      pageNum: 1,
+      pageSize: 12,
+      sortBy: 'downloads',
+      sortOrder: 'desc',
+    });
+    const rows = Array.isArray(res?.data)
+      ? res.data
+      : Array.isArray(res?.data?.records)
+        ? res.data.records
+        : [];
+    if (res?.meta?.success) {
+      hotSkillItems.value = rows;
+    }
+  } catch (e) {
+    if (transportIsHttp) {
+      showToast(e instanceof Error ? e.message : '热门 Skill 加载失败');
+    }
+  } finally {
+    hotSkillsLoading.value = false;
+  }
+}
 
 const myReleasePageNumValue = ref<number>(1);
 const myReleasePageSizeValue = ref<number>(16);
@@ -1737,7 +2098,7 @@ watch(
   async (tab) => {
     closeDeleteConfirm();
     if (tab === 'hot') {
-      await loadHotSkillNums();
+      await Promise.all([loadHotSkillNums(), loadHotSkillCards()]);
     }
     if (tab === 'overview') {
       await startOverviewRemoteFetch();
@@ -2203,6 +2564,14 @@ const handleDetailItem = async (skill: any, id: any) => {
 async function openDetailPanel(id: any): Promise<void> {
   const skill = newSkills.value.find((item) => skillKey(item) === id);
   if (!skill) {
+    return;
+  }
+  await handleDetailItem(skill, id);
+}
+
+async function openHotSkillDetail(skill: any): Promise<void> {
+  const id = String(skill?.id ?? skill?.skill_id ?? '').trim();
+  if (!id) {
     return;
   }
   await handleDetailItem(skill, id);
@@ -3078,7 +3447,12 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
       </div>
     </section>
 
-    <div v-if="innerTab === 'hot'" ref="tabPanelRef" class="tabs-panel" :style="tabPanelFillStyle">
+    <div
+      v-if="innerTab === 'hot'"
+      ref="tabPanelRef"
+      class="tabs-panel hot-panel"
+      :style="tabPanelFillStyle"
+    >
       <section class="hot-hero-simple">
         <h1>发现高价值 <span class="grad-text">Agent Skills</span>，让优秀能力被复用</h1>
         <p class="hero-desc">
@@ -3168,6 +3542,117 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           </div>
         </div>
       </section>
+
+      <div class="hot-search-row" role="search">
+        <label class="hot-search-box" aria-label="搜索热门 Skill">
+          <span class="hot-search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="10.8" cy="10.8" r="6.2" stroke="currentColor" stroke-width="2" />
+              <path
+                d="m15.4 15.4 4 4"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+          <input v-model="hotSearch" type="search" placeholder="搜索热门 Skill / 创建者 / 标签" />
+        </label>
+        <button type="button" class="hot-search-more" @click="goTab('overview')">
+          探索全部技能 <span aria-hidden="true">→</span>
+        </button>
+      </div>
+
+      <section class="hot-skill-section" aria-label="热门 Skill">
+        <div class="hot-section-title">
+          <div>
+            <h2><span>热门 Skill</span></h2>
+          </div>
+          <span v-if="hotSkillsLoading" class="hot-loading">加载中…</span>
+        </div>
+
+        <div v-if="hotSkillResults.length > 0" class="hot-skill-grid">
+          <button
+            v-for="(s, index) in hotSkillResults"
+            :key="`${s.id ?? s.skill_id ?? hotSkillName(s)}-${index}`"
+            type="button"
+            class="hot-skill-card"
+            :aria-label="`查看 ${hotSkillName(s)} 详情`"
+            @click="openHotSkillDetail(s)"
+          >
+            <div class="hot-skill-head">
+              <span class="hot-skill-icon" :class="hotSkillIconTone(s)">
+                {{ hotSkillInitial(s) }}
+              </span>
+              <span class="hot-card-more" aria-hidden="true">···</span>
+              <span class="hot-skill-main">
+                <span class="hot-skill-title-row">
+                  <strong class="hot-skill-title">{{ hotSkillName(s) }}</strong>
+                </span>
+                <span class="hot-skill-sub">{{ hotSkillOwner(s) }} · {{ hotSkillDept(s) }}</span>
+              </span>
+            </div>
+
+            <span class="hot-skill-desc">{{ hotSkillDesc(s) }}</span>
+
+            <span class="hot-skill-tags">
+              <span v-if="hotSkillCategory(s)" class="hot-tag hot-tag-fn">
+                {{ hotSkillCategory(s) }}
+              </span>
+              <span v-for="tag in hotSkillShownTags(s)" :key="tag" class="hot-tag hot-tag-skill">
+                #{{ tag }}
+              </span>
+              <span v-if="hotSkillExtraTagCount(s) > 0" class="hot-tag hot-tag-more">
+                +{{ hotSkillExtraTagCount(s) }}
+              </span>
+              <span
+                v-if="hotSkillScopeLabel(s)"
+                class="hot-tag"
+                :class="
+                  hotSkillScopeKind(s) === 'personal' ? 'hot-tag-personal' : 'hot-tag-org'
+                "
+              >
+                {{ hotSkillScopeLabel(s) }}
+              </span>
+            </span>
+
+            <span class="hot-skill-foot">
+              <span class="hot-footer-medals" aria-label="质量标识">
+                <span
+                  v-for="badge in hotSkillQualityBadges(s)"
+                  :key="badge.label"
+                  class="hot-quality-badge"
+                  :class="`badge-${badge.kind}`"
+                  :title="badge.label"
+                >
+                  {{ badge.label.slice(0, 1) }}
+                </span>
+                <span v-if="hotSkillQualityBadges(s).length === 0" class="hot-no-medal">—</span>
+              </span>
+              <span class="hot-footer-metrics">
+                <span class="hot-rating-metric" :title="`评分 ${hotSkillRatingLabel(s)}`">
+                  ★ {{ hotSkillRatingLabel(s) }}
+                </span>
+                <span class="hot-download-metric" aria-label="下载量">
+                  <svg class="hot-download-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M12 4v12m0 0l4-4m-4 4L8 12M5 19h14"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span>{{ formatHotNumber(hotSkillDownloadCount(s)) }}</span>
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+        <p v-else class="empty hot-empty">
+          {{ hotSkillsLoading ? '热门 Skill 加载中…' : '暂无匹配的热门 Skill' }}
+        </p>
+      </section>
     </div>
 
     <div
@@ -3179,235 +3664,285 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
       <section class="all-header">
         <div class="all-header-copy">
           <h1 class="all-title">全部技能</h1>
-          <p class="all-desc">
-            按部门、组织、业务维度和标签快速发现可复用 Skill · 共
-            <strong>{{ totalSkills.toLocaleString('zh-CN') }}</strong> 个内部技能
-          </p>
-        </div>
-        <div class="all-header-art" aria-hidden="true">
-          <span class="all-art-card all-art-card-blue">
-            <i />
-          </span>
-          <span class="all-art-card all-art-card-yellow">
-            <i />
-            <i />
-          </span>
+          <div class="all-header-meta-row">
+            <p class="all-desc">
+              按部门、组织、业务维度和标签快速发现可复用 Skill
+            </p>
+            <div class="all-header-controls">
+              <label class="all-search-box" aria-label="搜索 Skill、作者、组织或业务">
+                <span class="all-search-icon" aria-hidden="true">⌕</span>
+                <input
+                  id="all-skill-search"
+                  v-model="search"
+                  type="search"
+                  placeholder="搜索名称 / 描述 / 创建者工号"
+                  @keydown.enter="onSearchKeyWord"
+                  @input="onSearchKeyWord"
+                />
+              </label>
+              <button
+                type="button"
+                class="all-advanced-toggle all-advanced-trigger"
+                :class="{ active: overviewAdvancedOpen }"
+                :aria-expanded="overviewAdvancedOpen"
+                aria-controls="all-filter-panel"
+                @click="toggleOverviewAdvancedPanel"
+              >
+                高级筛选 <span aria-hidden="true">⚙</span>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <div class="all-category-chips" aria-label="业务维度">
-        <button
-          type="button"
-          class="all-category-chip"
-          :class="{ active: categoryFilter === 'all' }"
-          @click="setCategoryFilter('all')"
-        >
-          全部
-        </button>
-        <button
-          v-for="dimension in businessDimensionOptions"
-          :key="dimension.id || dimension.dimensionCode"
-          type="button"
-          class="all-category-chip"
-          :class="{ active: categoryFilter === dimension.dimensionName }"
-          @click="setCategoryFilter(dimension.dimensionName)"
-        >
-          {{ dimension.dimensionName }}
-        </button>
-        <span
-          v-if="businessDimensionLoading && businessDimensionOptions.length === 0"
-          class="side-empty"
-        >
-          加载中…
-        </span>
-      </div>
-
-      <section
-        class="all-toolbar"
-        :class="{ 'has-org-filter': quickFilter === 'devDept' }"
-        aria-label="全部技能筛选"
-      >
-        <div class="toolbar-group toolbar-search-group">
-          <label class="toolbar-label" for="all-skill-search">关键词</label>
-          <label class="all-search-box" aria-label="搜索 Skill、作者、组织或业务">
-            <span class="all-search-icon" aria-hidden="true">⌕</span>
-            <input
-              id="all-skill-search"
-              v-model="search"
-              type="search"
-              placeholder="搜索名称 / 描述 / 创建者工号"
-              @keydown.enter="onSearchKeyWord"
-              @input="onSearchKeyWord"
-            />
-          </label>
+      <section class="all-dimension-strip" aria-label="业务维度筛选">
+        <div ref="overviewDimensionRowRef" class="all-dimension-row">
+          <div ref="overviewDimensionInlineRef" class="all-dimension-inline">
+            <button
+              type="button"
+              class="all-category-chip"
+              :class="{ active: categoryFilter === 'all' }"
+              @click="setCategoryFilter('all')"
+            >
+              全部
+            </button>
+            <button
+              v-for="dimension in businessDimensionOptions"
+              :key="dimension.id || dimension.dimensionCode"
+              type="button"
+              class="all-category-chip"
+              :class="{ active: categoryFilter === dimension.dimensionName }"
+              @click="setCategoryFilter(dimension.dimensionName)"
+            >
+              {{ dimension.dimensionName }}
+            </button>
+            <span
+              v-if="businessDimensionLoading && businessDimensionOptions.length === 0"
+              class="side-empty"
+            >
+              加载中…
+            </span>
+          </div>
+          <button
+            v-if="overviewDimensionOverflow"
+            type="button"
+            class="all-dimension-more"
+            :class="{ active: overviewDimensionMoreOpen }"
+            aria-haspopup="true"
+            :aria-expanded="overviewDimensionMoreOpen"
+            @click.stop="toggleOverviewDimensionMore"
+          >
+            更多 <span aria-hidden="true">▾</span>
+          </button>
         </div>
 
-        <div class="toolbar-group toolbar-dept-group">
-          <span class="toolbar-label">部门</span>
+        <Teleport to="body">
           <div
-            ref="marketDeptCascaderWrapRef"
-            class="market-dept-cascader all-dept-cascader"
-            aria-label="部门级联筛选（departmentL1～L6）"
+            v-if="overviewDimensionMoreOpen"
+            ref="overviewDimensionDropdownRef"
+            class="all-dimension-dropdown"
+            :style="overviewDimensionDropdownStyle"
+            role="menu"
+            aria-label="全部业务维度"
+            @mousedown.stop
           >
             <button
               type="button"
-              class="market-dept-cascader-trigger"
-              :class="{ 'is-open': overviewDeptCascaderOpen }"
-              aria-haspopup="true"
-              :aria-expanded="overviewDeptCascaderOpen"
-              @click.stop="toggleOverviewDeptCascader"
+              class="all-category-chip"
+              :class="{ active: categoryFilter === 'all' }"
+              role="menuitem"
+              @click="setCategoryFilterFromDropdown('all')"
             >
-              <span class="market-dept-cascader-trigger-text" :title="overviewDeptCascaderLabel">
-                {{ overviewDeptCascaderLabel }}
-              </span>
-              <span class="market-dept-cascader-caret" aria-hidden="true">▾</span>
+              全部
             </button>
-            <Teleport to="body">
-              <div
-                v-if="overviewDeptCascaderOpen"
-                ref="marketDeptCascaderPanelRef"
-                class="market-dept-cascader-panel"
-                :style="marketDeptCascaderPanelStyle"
-                role="listbox"
-                @mousedown.prevent
+            <button
+              v-for="dimension in businessDimensionOptions"
+              :key="`dimension-menu-${dimension.id || dimension.dimensionCode}`"
+              type="button"
+              class="all-category-chip"
+              :class="{ active: categoryFilter === dimension.dimensionName }"
+              role="menuitem"
+              @click="setCategoryFilterFromDropdown(dimension.dimensionName)"
+            >
+              {{ dimension.dimensionName }}
+            </button>
+          </div>
+        </Teleport>
+      </section>
+
+      <section
+        v-if="overviewAdvancedOpen"
+        id="all-filter-panel"
+        class="all-filter-panel"
+        aria-label="高级筛选面板"
+      >
+        <div class="all-filter-panel-head">
+          <h2 class="all-filter-panel-title">高级筛选</h2>
+          <button type="button" class="all-filter-panel-close" @click="toggleOverviewAdvancedPanel">
+            关闭
+          </button>
+        </div>
+
+        <section
+          class="all-toolbar"
+          :class="{ 'has-org-filter': quickFilter === 'devDept' }"
+          aria-label="全部技能筛选"
+        >
+          <div class="toolbar-group toolbar-dept-group">
+            <span class="toolbar-label">部门</span>
+            <div
+              ref="marketDeptCascaderWrapRef"
+              class="market-dept-cascader all-dept-cascader"
+              aria-label="部门级联筛选（departmentL1～L6）"
+            >
+              <button
+                type="button"
+                class="market-dept-cascader-trigger"
+                :class="{ 'is-open': overviewDeptCascaderOpen }"
+                aria-haspopup="true"
+                :aria-expanded="overviewDeptCascaderOpen"
+                @click.stop="toggleOverviewDeptCascader"
               >
+                <span class="market-dept-cascader-trigger-text" :title="overviewDeptCascaderLabel">
+                  {{ overviewDeptCascaderLabel }}
+                </span>
+                <span class="market-dept-cascader-caret" aria-hidden="true">▾</span>
+              </button>
+              <Teleport to="body">
                 <div
-                  v-if="overviewDeptCascadeColumns.length === 0"
-                  class="market-dept-cascader-empty"
+                  v-if="overviewDeptCascaderOpen"
+                  ref="marketDeptCascaderPanelRef"
+                  class="market-dept-cascader-panel"
+                  :style="marketDeptCascaderPanelStyle"
+                  role="listbox"
+                  @mousedown.prevent
                 >
-                  暂无部门数据（可先调整组织/分类或等待列表加载）
-                </div>
-                <div v-else class="market-dept-cascader-columns">
                   <div
-                    v-for="col in overviewDeptCascadeColumns"
-                    :key="'dept-col-' + col.levelIndex"
-                    class="market-dept-cascader-col"
-                    role="presentation"
+                    v-if="overviewDeptCascadeColumns.length === 0"
+                    class="market-dept-cascader-empty"
                   >
-                    <button
-                      v-for="name in col.options"
-                      :key="col.levelIndex + '-' + name"
-                      type="button"
-                      class="market-dept-cascader-item"
-                      :class="{ 'is-active': col.active === name }"
-                      role="option"
-                      :aria-selected="col.active === name"
-                      @click="onOverviewDeptCascadeChange(col.levelIndex, name)"
+                    暂无部门数据（可先调整组织/分类或等待列表加载）
+                  </div>
+                  <div v-else class="market-dept-cascader-columns">
+                    <div
+                      v-for="col in overviewDeptCascadeColumns"
+                      :key="'dept-col-' + col.levelIndex"
+                      class="market-dept-cascader-col"
+                      role="presentation"
                     >
-                      <span class="market-dept-cascader-item-label">{{ name }}</span>
-                      <span
-                        v-if="marketOverviewDeptPickHasChildren(col.levelIndex, name)"
-                        class="market-dept-cascader-item-chevron"
-                        aria-hidden="true"
+                      <button
+                        v-for="name in col.options"
+                        :key="col.levelIndex + '-' + name"
+                        type="button"
+                        class="market-dept-cascader-item"
+                        :class="{ 'is-active': col.active === name }"
+                        role="option"
+                        :aria-selected="col.active === name"
+                        @click="onOverviewDeptCascadeChange(col.levelIndex, name)"
                       >
-                        ›
-                      </span>
+                        <span class="market-dept-cascader-item-label">{{ name }}</span>
+                        <span
+                          v-if="marketOverviewDeptPickHasChildren(col.levelIndex, name)"
+                          class="market-dept-cascader-item-chevron"
+                          aria-hidden="true"
+                        >
+                          ›
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="market-dept-cascader-footer">
+                    <button
+                      type="button"
+                      class="market-dept-cascader-clear"
+                      @click="clearOverviewDeptCascader"
+                    >
+                      清空部门
+                    </button>
+                    <button
+                      type="button"
+                      class="market-dept-cascader-done"
+                      @click="deptFilterOnChange"
+                    >
+                      完成
                     </button>
                   </div>
                 </div>
-                <div class="market-dept-cascader-footer">
-                  <button
-                    type="button"
-                    class="market-dept-cascader-clear"
-                    @click="clearOverviewDeptCascader"
-                  >
-                    清空部门
-                  </button>
-                  <button
-                    type="button"
-                    class="market-dept-cascader-done"
-                    @click="deptFilterOnChange"
-                  >
-                    完成
-                  </button>
-                </div>
-              </div>
-            </Teleport>
+              </Teleport>
+            </div>
           </div>
-        </div>
 
-        <label class="toolbar-group toolbar-level-group">
-          <span class="toolbar-label">Skill 级别</span>
-          <select
-            :value="quickFilter"
-            class="all-select"
-            aria-label="筛选 Skill 级别"
-            @change="onOverviewLevelFilterChange"
-          >
-            <option value="all">全部级别</option>
-            <option value="personal">个人级</option>
-            <option value="devDept">组织级</option>
-          </select>
-        </label>
-
-        <label v-if="quickFilter === 'devDept'" class="toolbar-group toolbar-org-group">
-          <span class="toolbar-label">组织</span>
-          <select
-            v-model="levelFilter"
-            class="all-select all-org-select"
-            aria-label="筛选组织"
-            @change="onOverviewOrgFilterChange"
-          >
-            <option value="all">全部组织</option>
-            <template v-if="transportIsHttp">
-              <option v-for="o in marketOrgSelectOptions" :key="o.id" :value="String(o.id)">
-                {{ o.orgName }}
-              </option>
-            </template>
-            <template v-else>
-              <option v-for="org in orgOptions" :key="org" :value="org">{{ org }}</option>
-            </template>
-          </select>
-        </label>
-
-        <div class="toolbar-group toolbar-action-group">
-          <span class="toolbar-label empty">高级</span>
-          <button
-            type="button"
-            class="all-advanced-toggle"
-            :class="{ active: overviewAdvancedOpen }"
-            @click="overviewAdvancedOpen = !overviewAdvancedOpen"
-          >
-            高级筛选 <span aria-hidden="true">⚙</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="all-advanced" :class="{ open: overviewAdvancedOpen }" aria-label="高级筛选">
-        <div class="filter-line">
-          <span class="filter-label">标签筛选</span>
-          <div class="chips chips-tags" :class="{ 'is-expanded': overviewTagListExpandedUi }">
-            <button
-              v-for="tag in tagOptions"
-              :key="tag"
-              type="button"
-              class="chip"
-              :class="{ active: selectedTags.includes(tag) }"
-              @click="toggleTagFilter(tag)"
+          <label class="toolbar-group toolbar-level-group">
+            <span class="toolbar-label">Skill 级别</span>
+            <select
+              :value="quickFilter"
+              class="all-select"
+              aria-label="筛选 Skill 级别"
+              @change="onOverviewLevelFilterChange"
             >
-              {{ tag }}
-            </button>
-            <span v-if="tagOptions.length === 0" class="side-empty">暂无标签</span>
+              <option value="all">全部级别</option>
+              <option value="personal">个人级</option>
+              <option value="devDept">组织级</option>
+            </select>
+          </label>
+
+          <label v-if="quickFilter === 'devDept'" class="toolbar-group toolbar-org-group">
+            <span class="toolbar-label">组织</span>
+            <select
+              v-model="levelFilter"
+              class="all-select all-org-select"
+              aria-label="筛选组织"
+              @change="onOverviewOrgFilterChange"
+            >
+              <option value="all">全部组织</option>
+              <template v-if="transportIsHttp">
+                <option v-for="o in marketOrgSelectOptions" :key="o.id" :value="String(o.id)">
+                  {{ o.orgName }}
+                </option>
+              </template>
+              <template v-else>
+                <option v-for="org in orgOptions" :key="org" :value="org">{{ org }}</option>
+              </template>
+            </select>
+          </label>
+        </section>
+
+        <section class="all-advanced open" aria-label="标签筛选">
+          <div class="filter-line">
+            <span class="filter-label">标签筛选</span>
+            <div class="chips chips-tags" :class="{ 'is-expanded': overviewTagListExpandedUi }">
+              <button
+                v-for="tag in tagOptions"
+                :key="tag"
+                type="button"
+                class="chip"
+                :class="{ active: selectedTags.includes(tag) }"
+                @click="toggleTagFilter(tag)"
+              >
+                {{ tag }}
+              </button>
+              <span v-if="tagOptions.length === 0" class="side-empty">暂无标签</span>
+            </div>
+            <div class="all-filter-actions">
+              <button
+                v-if="selectedTags.length > 0"
+                type="button"
+                class="tag-clear"
+                @click="clearTagFilters"
+              >
+                清除标签
+              </button>
+              <button
+                v-if="showOverviewTagExpandToggle"
+                type="button"
+                class="side-tags-expand"
+                @click="overviewTagListExpanded = !overviewTagListExpanded"
+              >
+                {{ overviewTagListExpanded ? '收起标签' : '展开全部标签' }}
+              </button>
+            </div>
           </div>
-          <div class="all-filter-actions">
-            <button
-              v-if="selectedTags.length > 0"
-              type="button"
-              class="tag-clear"
-              @click="clearTagFilters"
-            >
-              清除标签
-            </button>
-            <button
-              v-if="showOverviewTagExpandToggle"
-              type="button"
-              class="side-tags-expand"
-              @click="overviewTagListExpanded = !overviewTagListExpanded"
-            >
-              {{ overviewTagListExpanded ? '收起标签' : '展开全部标签' }}
-            </button>
-          </div>
-        </div>
+        </section>
       </section>
 
       <section class="all-results market-content" aria-label="Skill 市场内容">
@@ -3556,7 +4091,6 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           <div class="soft-card mine-status-overview">
             <div class="section-title mine-card-head">
               <h3>发布状态概览</h3>
-              <span class="badge score">T+1 数据</span>
             </div>
             <div class="stat-grid">
               <div class="metric-card">
