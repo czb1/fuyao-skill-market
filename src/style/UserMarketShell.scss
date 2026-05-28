@@ -7458,11 +7458,11 @@
   flex: 0 0 auto;
   display: grid;
   gap: 14px;
-  margin: 0 0 14px;
+  margin: -25px 0 0;
   padding: 18px;
   border: 1px solid rgba(224, 231, 243, 0.96);
   border-radius: 20px;
-  // background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 18px 44px rgba(22, 34, 51, 0.07);
   z-index: 9999;
 }
@@ -8387,7 +8387,7 @@
 }
 
 .skill-market-shell.is-overview-tab .overview-panel .grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .skill-market-shell.is-overview-tab .all-filter-panel {
@@ -8420,6 +8420,18 @@
   }
 }
 
+@media (max-width: 1320px) {
+  .skill-market-shell.is-overview-tab .overview-panel .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1040px) {
+  .skill-market-shell.is-overview-tab .overview-panel .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
   .skill-market-shell.is-overview-tab .panel.tab-panel.overview-panel {
     padding: 64px 12px 0 !important;
@@ -8443,6 +8455,10 @@
   .skill-market-shell.is-overview-tab .market-sort-actions {
     width: 100%;
   }
+
+  .skill-market-shell.is-overview-tab .overview-panel .grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .skill-market-shell.is-overview-tab .all-dimension-strip {
@@ -8460,7 +8476,7 @@
   flex: 0 0 auto;
   align-items: end;
   justify-content: flex-start;
-  margin: 20px 0 14px 0;
+  margin: 5px 0 14px 0;
 }
 
 .skill-market-shell.is-overview-tab .all-search-strip .all-search-box {
