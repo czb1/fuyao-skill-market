@@ -6164,11 +6164,20 @@
 
 .all-dimension-dropdown {
   box-sizing: border-box;
+  --all-dimension-dropdown-chip-height: 34px;
+  --all-dimension-dropdown-row-gap: 12px;
+  --all-dimension-dropdown-padding-y: 16px;
   display: flex;
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 12px;
-  overflow: auto;
+  max-width: calc(100vw - 32px);
+  max-height: calc(
+    var(--all-dimension-dropdown-padding-y) * 2 + var(--all-dimension-dropdown-chip-height) * 3 +
+      var(--all-dimension-dropdown-row-gap) * 2 + 2px
+  );
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 16px;
   border: 1px solid rgba(220, 228, 241, 0.96);
   border-radius: 18px;
@@ -6176,6 +6185,24 @@
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  overscroll-behavior: contain;
+}
+
+.all-dimension-dropdown > * {
+  max-width: 100%;
+}
+
+.all-dimension-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.all-dimension-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.all-dimension-dropdown::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
 }
 
 .all-category-chips {

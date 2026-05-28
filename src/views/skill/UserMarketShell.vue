@@ -873,19 +873,14 @@ function updateOverviewDimensionDropdownLayout(): void {
   }
   const rect = row.getBoundingClientRect();
   const margin = 16;
-  const availableWidth = Math.max(240, window.innerWidth - margin * 2);
-  const width = Math.min(760, availableWidth, Math.max(360, rect.width));
-  const left = Math.min(
-    Math.max(margin, rect.left),
-    Math.max(margin, window.innerWidth - width - margin),
-  );
-  const top = Math.min(rect.bottom + 8, window.innerHeight - 220);
+  const left = Math.max(margin, Math.floor(rect.left));
+  const width = Math.max(320, Math.floor(window.innerWidth - left - margin));
+  const top = rect.bottom + 8;
   overviewDimensionDropdownStyle.value = {
     position: 'fixed',
-    left: `${Math.floor(left)}px`,
-    top: `${Math.floor(Math.max(margin, top)) + 10}px`,
-    width: `${Math.floor(width)}px`,
-    maxHeight: `${Math.max(220, Math.floor(window.innerHeight - top - margin))}px`,
+    left: `${left}px`,
+    top: `${Math.floor(Math.max(margin, top))}px`,
+    width: `${width}px`,
     zIndex: 3600,
   };
 }
