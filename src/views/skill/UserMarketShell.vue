@@ -108,9 +108,6 @@ const hotMarketStatsByKey = ref<any>({
   downloadCount: { key: 'downloadCount', label: '下载数', value: '86万' },
 });
 
-/** 标签数超过该值时默认折叠，可点「展开」拉高显示 */
-const OVERVIEW_TAGS_COLLAPSE_THRESHOLD = 10;
-
 const innerTabAliases: Record<string, UserInnerTab> = {
   hot: 'hot',
   热榜: 'hot',
@@ -176,8 +173,6 @@ const businessDimensionLoading = ref(false);
 const selectedTags = ref<string[]>([]);
 const quickFilter = ref<string>('all');
 const overviewSort = ref<'time' | 'downloads' | 'rating'>('downloads');
-/** 市场总览左侧标签区：标签过多时由用户展开 */
-const overviewTagListExpanded = ref(false);
 const overviewAdvancedOpen = ref(false);
 const overviewDimensionMoreOpen = ref(false);
 const overviewDimensionOverflow = ref(false);
@@ -1057,17 +1052,6 @@ const hotSkillResults = computed(() => {
     .slice(0, 6);
 });
 
-const showOverviewTagExpandToggle = computed(
-  () => tagOptions.value.length > OVERVIEW_TAGS_COLLAPSE_THRESHOLD,
-);
-
-const overviewTagListExpandedUi = computed(() => {
-  if (!showOverviewTagExpandToggle.value) {
-    return true;
-  }
-  return overviewTagListExpanded.value;
-});
-
 function toggleOverviewAdvancedPanel(): void {
   overviewAdvancedOpen.value = !overviewAdvancedOpen.value;
   if (!overviewAdvancedOpen.value) {
@@ -1552,7 +1536,11 @@ watch(categoryOptions, (options) => {
   }
 });
 
-async function setCategoryFilter(value: string, subValue = 'all'): Promise<void> {
+async function setCategoryFilter(
+  value: string,
+  subValue = 'all',
+  categoryParam?: string,
+): Promise<void> {
   categoryFilter.value = value;
   categorySubFilter.value = value === 'all' ? 'all' : subValue;
   if (transportIsHttp && innerTab.value === 'overview') {
@@ -1563,7 +1551,7 @@ async function setCategoryFilter(value: string, subValue = 'all'): Promise<void>
       overviewFilterObj.value.category = '';
     } else {
       overviewFilterObj.value.businessDimension = value;
-      overviewFilterObj.value.category = subValue === 'all' ? '' : subValue;
+      overviewFilterObj.value.category = subValue === 'all' ? '' : (categoryParam ?? subValue);
     }
     await startOverviewRemoteFetch();
   }
@@ -1576,9 +1564,13 @@ async function setCategoryFilterFromDropdown(value: string): Promise<void> {
 
 async function selectBusinessDimensionChild(
   dimension: BusinessDimensionDto,
-  childValue: string,
+  child: BusinessDimensionDto | 'all',
 ): Promise<void> {
-  await setCategoryFilter(dimension.dimensionName, childValue);
+  if (child === 'all') {
+    await setCategoryFilter(dimension.dimensionName, 'all');
+  } else {
+    await setCategoryFilter(dimension.dimensionName, child.dimensionName, String(child.id));
+  }
   closeBusinessDimensionPanelNow();
   closeOverviewDimensionMore();
 }
@@ -3769,7 +3761,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                           categoryFilter === dimension.dimensionName &&
                           categorySubFilter === child.dimensionName,
                       }"
-                      @click="selectBusinessDimensionChild(dimension, child.dimensionName)"
+                      @click="selectBusinessDimensionChild(dimension, child)"
                     >
                       {{ child.dimensionName }}
                     </button>
@@ -3867,7 +3859,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                           categoryFilter === dimension.dimensionName &&
                           categorySubFilter === child.dimensionName,
                       }"
-                      @click="selectBusinessDimensionChild(dimension, child.dimensionName)"
+                      @click="selectBusinessDimensionChild(dimension, child)"
                     >
                       {{ child.dimensionName }}
                     </button>
@@ -4044,7 +4036,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
         <section class="all-advanced open" aria-label="标签筛选">
           <div class="filter-line">
             <span class="filter-label">标签筛选</span>
-            <div class="chips chips-tags" :class="{ 'is-expanded': overviewTagListExpandedUi }">
+            <div class="chips chips-tags is-expanded">
               <button
                 v-for="tag in tagOptions"
                 :key="tag"
@@ -4065,14 +4057,6 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                 @click="clearTagFilters"
               >
                 清除标签
-              </button>
-              <button
-                v-if="showOverviewTagExpandToggle"
-                type="button"
-                class="side-tags-expand"
-                @click="overviewTagListExpanded = !overviewTagListExpanded"
-              >
-                {{ overviewTagListExpanded ? '收起标签' : '展开全部标签' }}
               </button>
             </div>
           </div>
