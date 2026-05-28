@@ -108,8 +108,6 @@ const hotMarketStatsByKey = ref<any>({
   downloadCount: { key: 'downloadCount', label: '下载数', value: '86万' },
 });
 
-const OVERVIEW_DEFAULT_VISIBLE_ROWS = 3;
-const OVERVIEW_MAX_PAGE_SIZE = 48;
 /** 标签数超过该值时默认折叠，可点「展开」拉高显示 */
 const OVERVIEW_TAGS_COLLAPSE_THRESHOLD = 10;
 
@@ -144,32 +142,6 @@ function routeTabFromQuery(value: unknown): UserInnerTab {
     return 'hot';
   }
   return innerTabAliases[raw] ?? innerTabAliases[raw.toLowerCase()] ?? 'hot';
-}
-
-function overviewColumnCountByViewport(): number {
-  if (typeof window === 'undefined') {
-    return 3;
-  }
-  if (window.innerWidth >= 1920) {
-    return 4;
-  }
-  if (window.innerWidth <= 760) {
-    return 1;
-  }
-  if (window.innerWidth <= 1180) {
-    return 2;
-  }
-  return 3;
-}
-
-function overviewPageSizeByLayout(columns: number, rows: number): number {
-  const safeColumns = Math.max(1, Math.floor(columns));
-  const safeRows = Math.max(1, Math.floor(rows));
-  return Math.min(OVERVIEW_MAX_PAGE_SIZE, safeColumns * safeRows);
-}
-
-function initialOverviewPageSize(): number {
-  return overviewPageSizeByLayout(overviewColumnCountByViewport(), OVERVIEW_DEFAULT_VISIBLE_ROWS);
 }
 
 const helpLink = () => {
@@ -213,8 +185,6 @@ const tabPanelRef = ref<HTMLElement | null>(null);
 const tabPanelMinHeight = ref(0);
 const marketContentRef = ref<HTMLElement | null>(null);
 const overviewGridRef = ref<HTMLElement | null>(null);
-/** Mock / 本地全量筛选后，渐进展示的条数 */
-const overviewVisibleCount = ref(initialOverviewPageSize());
 /** HTTP：当前页的接口列表（再经与 Mock 一致的排序） */
 
 const pageNumValue = ref<number>(1);
@@ -240,7 +210,6 @@ const overviewRemoteTotal = ref(0);
 const overviewRemoteExhausted = ref(false);
 const overviewRemoteLoading = ref(false);
 let overviewScrollRaf = 0;
-const pageSize = ref(initialOverviewPageSize());
 const toast = ref('');
 const showAdminModules = computed(() => marketRoleShowsOrgManagement(currentUserRole.value));
 const canCreateOrg = computed(() => marketRoleCanCreateOrganization(currentUserRole.value));
@@ -301,7 +270,6 @@ const detailDeleteConfirmStyle = ref<CSSProperties>({});
 const detailDeletePendingId = ref<string | null>(null);
 const detailDeletePendingTitle = ref('');
 let detailDeleteConfirmListenersBound = false;
-let overviewPageSizeFrame = 0;
 
 function formatYmd(date: Date): string {
   const y = date.getFullYear();
@@ -439,44 +407,73 @@ function sortOverviewSkills(list: Skill[]): Skill[] {
   );
 }
 
-const OVERVIEW_BOTTOM_THRESHOLD = 8;
-let lastScrollTop = 0; // 上一次的滚动位置
-let overviewBottomLoadArmed = true;
+const OVERVIEW_PREFETCH_MIN_DISTANCE = 480;
+const OVERVIEW_PREFETCH_VIEWPORT_RATIO = 0.6;
+const OVERVIEW_POST_RENDER_CHECK_DELAY = 80;
+let overviewPostRenderCheckTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 function resetOverviewScrollState(): void {
-  lastScrollTop = 0;
-  overviewBottomLoadArmed = true;
+  if (overviewScrollRaf) {
+    window.cancelAnimationFrame(overviewScrollRaf);
+    overviewScrollRaf = 0;
+  }
+  if (overviewPostRenderCheckTimer) {
+    window.clearTimeout(overviewPostRenderCheckTimer);
+    overviewPostRenderCheckTimer = null;
+  }
 }
 
-const handleScroll = async () => {
-  if (!transportIsHttp || overviewRemoteLoading.value) {
-    return;
-  }
+function overviewHasMoreRemoteItems(): boolean {
+  return !overviewRemoteExhausted.value && newSkills.value.length < page.total;
+}
+
+function overviewRemainingScrollDistance(): number {
   const el = marketContentRef.value;
   if (!el) {
-    return;
+    return Number.POSITIVE_INFINITY;
   }
-  const scrollTop = el.scrollTop;
-  const maxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
-  const isNearBottom = maxScrollTop - scrollTop <= OVERVIEW_BOTTOM_THRESHOLD;
-  if (!isNearBottom) {
-    overviewBottomLoadArmed = true;
-    lastScrollTop = scrollTop;
-    return;
-  }
+  return el.scrollHeight - el.clientHeight - el.scrollTop;
+}
 
-  if (!overviewBottomLoadArmed || scrollTop < lastScrollTop) {
-    lastScrollTop = scrollTop;
+function overviewNearBottom(): boolean {
+  const el = marketContentRef.value;
+  if (!el) {
+    return false;
+  }
+  const prefetchDistance = Math.max(
+    OVERVIEW_PREFETCH_MIN_DISTANCE,
+    Math.floor(el.clientHeight * OVERVIEW_PREFETCH_VIEWPORT_RATIO),
+  );
+  return overviewRemainingScrollDistance() <= prefetchDistance;
+}
+
+async function loadNextOverviewRemotePageIfNeeded(): Promise<void> {
+  if (
+    innerTab.value !== 'overview' ||
+    overviewRemoteLoading.value ||
+    !overviewHasMoreRemoteItems() ||
+    !overviewNearBottom()
+  ) {
     return;
   }
+  const nextPage = page.pageIndex + 1;
+  page.pageIndex = nextPage;
+  overviewFilterObj.value.pageNum = nextPage;
+  await startOverviewRemoteFetch(true);
+}
 
-  if (page.pageIndex * page.pageSize < page.total) {
-    overviewBottomLoadArmed = false;
-    page.pageIndex += 1;
-    overviewFilterObj.value.pageNum = page.pageIndex;
-    await startOverviewRemoteFetch(true);
+function scheduleOverviewLoadMoreCheck(): void {
+  if (overviewScrollRaf) {
+    return;
   }
-  lastScrollTop = el.scrollTop;
+  overviewScrollRaf = window.requestAnimationFrame(() => {
+    overviewScrollRaf = 0;
+    void loadNextOverviewRemotePageIfNeeded();
+  });
+}
+
+const handleScroll = () => {
+  scheduleOverviewLoadMoreCheck();
 };
 
 const orgOptions = computed(() => {
@@ -1230,7 +1227,7 @@ const debounce = (fn: any, delay: number): any => {
   };
 };
 
-const debounceScroll = debounce(handleScroll, 200);
+const debounceScroll = handleScroll;
 
 onMounted(async () => {
   if (transportIsHttp) {
@@ -1272,8 +1269,9 @@ onBeforeUnmount(() => {
     window.cancelAnimationFrame(overviewScrollRaf);
     overviewScrollRaf = 0;
   }
-  if (overviewPageSizeFrame) {
-    window.cancelAnimationFrame(overviewPageSizeFrame);
+  if (overviewPostRenderCheckTimer) {
+    window.clearTimeout(overviewPostRenderCheckTimer);
+    overviewPostRenderCheckTimer = null;
   }
   if (overviewDimensionResizeFrame) {
     window.cancelAnimationFrame(overviewDimensionResizeFrame);
@@ -1290,20 +1288,32 @@ const overviewFilteredAll = computed(() => {
 });
 
 async function startOverviewRemoteFetch(isPageOver?: boolean): Promise<void> {
+  if (overviewRemoteLoading.value) {
+    return;
+  }
   if (!isPageOver) {
     resetOverviewScrollState();
+    page.pageIndex = 1;
+    overviewFilterObj.value.pageNum = 1;
+    overviewRemoteExhausted.value = false;
   }
   overviewRemoteLoading.value = true;
   try {
     const env = await skillBaseService.querySkillList(overviewFilterObj.value);
     if (env.meta.success && env.data) {
-      const nextItems = isPageOver ? [...newSkills.value, ...env.data] : [...env.data];
+      const pageItems = Array.isArray(env.data) ? env.data : [];
+      const nextItems = isPageOver
+        ? [...newSkills.value, ...pageItems].filter(
+            (item, index, arr) =>
+              arr.findIndex((candidate) => skillKey(candidate) === skillKey(item)) === index,
+          )
+        : [...pageItems];
       newSkills.value = nextItems;
       overviewRemoteItems.value = nextItems;
       overviewRemoteTotal.value = env.meta.number;
       page.total = env.meta.number;
       overviewRemoteExhausted.value =
-        newSkills.value.length === 0 || newSkills.value.length >= overviewRemoteTotal.value;
+        pageItems.length === 0 || newSkills.value.length >= overviewRemoteTotal.value;
       totalDownloads.value = newSkills.value.reduce(
         (acc, curr) => acc + parseInt(curr.downloads ?? 0),
         0,
@@ -1311,6 +1321,14 @@ async function startOverviewRemoteFetch(isPageOver?: boolean): Promise<void> {
     }
   } finally {
     overviewRemoteLoading.value = false;
+    await nextTick();
+    if (overviewPostRenderCheckTimer) {
+      window.clearTimeout(overviewPostRenderCheckTimer);
+    }
+    overviewPostRenderCheckTimer = window.setTimeout(() => {
+      overviewPostRenderCheckTimer = null;
+      scheduleOverviewLoadMoreCheck();
+    }, OVERVIEW_POST_RENDER_CHECK_DELAY);
   }
 }
 
@@ -1355,26 +1373,19 @@ async function onOverviewLevelFilterChange(event: Event): Promise<void> {
   await changeOverviewTab(value);
 }
 
-const overviewHasMoreLocal = computed(
-  () => overviewVisibleCount.value < overviewFilteredAll.value.length,
-);
-
 const overviewHasMore = computed(() => {
-  if (transportIsHttp) {
-    if (overviewRemoteLoading.value) {
-      return false;
-    }
-    if (overviewRemoteExhausted.value) {
-      return false;
-    }
-    return overviewRemoteItems.value.length < overviewRemoteTotal.value;
+  if (overviewRemoteLoading.value) {
+    return false;
   }
-  return overviewHasMoreLocal.value;
+  if (overviewRemoteExhausted.value) {
+    return false;
+  }
+  return overviewRemoteItems.value.length < overviewRemoteTotal.value;
 });
 
 const overviewListFooterHint = computed(() => {
   const shown = newSkills.value.length;
-  const total = transportIsHttp ? overviewRemoteTotal.value : overviewFilteredAll.value.length;
+  const total = overviewRemoteTotal.value;
   if (overviewRemoteLoading.value) {
     return `加载中…（已展示 ${shown} 条，合计 ${total} 条）`;
   }
@@ -1444,15 +1455,6 @@ const changeSort = async (type: 'time' | 'downloads' | 'rating') => {
   overviewFilterObj.value.sortOrder = 'desc';
   await startOverviewRemoteFetch();
 };
-
-watch(pageSize, (next, prev) => {
-  if (transportIsHttp) {
-    return;
-  }
-  if (next > prev) {
-    overviewVisibleCount.value = Math.max(overviewVisibleCount.value, next);
-  }
-});
 
 watch(levelFilter, () => {
   overviewMarketDeptSegments.value = [];

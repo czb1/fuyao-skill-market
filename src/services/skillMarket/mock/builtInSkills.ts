@@ -244,6 +244,92 @@ function createExtraMockSkill(seed: ExtraMockSkillSeed, index: number): Skill {
   return skill;
 }
 
+const GENERATED_MOCK_TOTAL = 202;
+const BASE_MOCK_SKILL_COUNT = 3 + EXTRA_MOCK_SKILL_SEEDS.length;
+const GENERATED_MOCK_SKILL_COUNT = Math.max(0, GENERATED_MOCK_TOTAL - BASE_MOCK_SKILL_COUNT);
+
+const GENERATED_MOCK_NAMES = [
+  '接口设计检查',
+  '自动化巡检',
+  '技术方案评审',
+  '数据质量校验',
+  '发布风险扫描',
+  '日志聚类分析',
+  '需求影响评估',
+  '测试数据生成',
+];
+
+const GENERATED_MOCK_CATEGORIES = ['公共', '设计', '开发', '测试', '运维', '维护', '研究', '项目管理'];
+const GENERATED_MOCK_TAGS = [
+  ['api', 'review'],
+  ['design', 'requirement'],
+  ['cicd', 'release'],
+  ['test', 'sql'],
+  ['ops', 'log'],
+  ['impact', 'review'],
+];
+const GENERATED_MOCK_ORGS = ['IT装备部', '质量工具组', '平台工具组', '云服务组', 'SRE团队'];
+const GENERATED_MOCK_DEPTS = [
+  '部门1/API产品线/联调工具部/接口治理组',
+  '部门1/质量产品线/质量工具组/评审小组',
+  '部门1/平台产品线/平台工具组/自动化组',
+  '部门1/SRE产品线/平台稳定部/日志工具组',
+  '部门1/数据产品线/数据库运营部/SQL治理组',
+  '部门1/项目产品线/项目管理部/交付管理组',
+];
+
+function createGeneratedMockSkill(index: number): Skill {
+  const seq = BASE_MOCK_SKILL_COUNT + index + 1;
+  const nameBase = GENERATED_MOCK_NAMES[index % GENERATED_MOCK_NAMES.length];
+  const category = GENERATED_MOCK_CATEGORIES[index % GENERATED_MOCK_CATEGORIES.length];
+  const publishLevel = index % 3 === 0 ? '个人级' : '组织级';
+  const publishName =
+    publishLevel === '个人级'
+      ? 'xxx_个人发布商'
+      : GENERATED_MOCK_ORGS[index % GENERATED_MOCK_ORGS.length];
+  const version = `1.${index % 8}.${index % 5}`;
+  const day = String((index % 28) + 1).padStart(2, '0');
+  const hour = String(8 + (index % 12)).padStart(2, '0');
+  const publishTime = `2024-06-${day} ${hour}:20`;
+  const tags = GENERATED_MOCK_TAGS[index % GENERATED_MOCK_TAGS.length];
+  const skillId = `mock-bulk-${String(seq).padStart(3, '0')}`;
+
+  return {
+    skill_id: skillId,
+    description: `${nameBase}批量演示数据，用于验证 32/64/96/128/160 等分页节点的滚动懒加载稳定性`,
+    publish_name: publishName,
+    publish_level: publishLevel,
+    owner_list: JSON.stringify([{ lastName: publishName, Account: `mock${seq}` }]),
+    download_count: 20 + ((index * 17) % 380),
+    dept_name: GENERATED_MOCK_DEPTS[index % GENERATED_MOCK_DEPTS.length],
+    id: String(seq),
+    name: `${nameBase} Skill ${String(index + 1).padStart(3, '0')}`,
+    icon: nameBase.slice(0, 2),
+    publisher: publishName,
+    createdBy: `u${String(20000 + index).padStart(5, '0')}`,
+    latestPublishTime: publishTime,
+    level: publishLevel,
+    downloads: 20 + ((index * 17) % 380),
+    rating: 4.2 + (index % 8) * 0.08,
+    version,
+    versions: [
+      {
+        version,
+        publishTime,
+        note: '批量 mock 数据',
+        packageFileName: `${skillId}-v${version}.zip`,
+        packageSize: 150000 + index * 1024,
+      },
+    ],
+    ownedByUser: publishLevel === '个人级',
+    tagFunctional: category,
+    tagOrg: publishLevel,
+    tags: tags.join(','),
+    fileTree: `${skillId}/\n${skillId}/SKILL.md\n${skillId}/src/main.py\n${skillId}/fixtures/sample.json`,
+    skillMdContent: `# ${nameBase} Skill ${String(index + 1).padStart(3, '0')}\n\n批量 mock 数据，用于验证长列表分页加载。`,
+  };
+}
+
 const BUILT_IN_MOCK_SKILLS: Skill[] = [
   {
     skill_id: 'test1',
@@ -373,6 +459,9 @@ const BUILT_IN_MOCK_SKILLS: Skill[] = [
       '# test3（Mock 接口原文）\n\n最小标签 + `data`/`schema` 路径；验证列表项同样携带接口型字段。',
   },
   ...EXTRA_MOCK_SKILL_SEEDS.map(createExtraMockSkill),
+  ...Array.from({ length: GENERATED_MOCK_SKILL_COUNT }, (_, index) =>
+    createGeneratedMockSkill(index),
+  ),
 ];
 
 /** Mock 服务内置市场 Skill 列表（仅由 Mock 客户端加载，页面不直接引用） */
