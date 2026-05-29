@@ -410,6 +410,36 @@ function categoryFromGroup(group: string | undefined): string {
   return CATEGORY_BY_GROUP[group ?? ''] ?? 'COMMON';
 }
 
+function categoryCandidatesFromParam(category: string): string[] {
+  const raw = category.trim();
+  if (!raw) {
+    return [];
+  }
+  const out = new Set<string>([raw]);
+  const visit = (nodes: ReturnType<typeof getMockBusinessDimensions>, parentCode = ''): boolean => {
+    for (const node of nodes) {
+      const code = String(node.dimensionCode ?? '').trim();
+      const name = String(node.dimensionName ?? '').trim();
+      const id = String(node.id ?? '').trim();
+      if (raw === id || raw === code || raw === name) {
+        if (code) {
+          out.add(code);
+        }
+        if (parentCode) {
+          out.add(parentCode);
+        }
+        return true;
+      }
+      if (node.children && visit(node.children, code || parentCode)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  visit(getMockBusinessDimensions());
+  return [...out];
+}
+
 function orgByName(name: string | undefined): MockOrganization | undefined {
   const key = (name ?? '').trim();
   return orgStore.find((o) => o.orgName === key);
@@ -684,7 +714,13 @@ function filterSkills(params: Record<string, unknown>, source = skillRecords): M
   }
   const category = String(params.category ?? '').trim();
   if (category) {
-    list = list.filter((s) => s.category === category);
+    const categoryCandidates = categoryCandidatesFromParam(category);
+    list = list.filter(
+      (s) =>
+        categoryCandidates.includes(s.category) ||
+        categoryCandidates.includes(s.categoryGroupName) ||
+        categoryCandidates.includes(s.tagFunctional ?? ''),
+    );
   }
   const tags = splitTags(params.tagList ?? params.tag);
   if (tags.length > 0) {

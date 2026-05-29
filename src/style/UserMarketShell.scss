@@ -148,14 +148,14 @@
   border-bottom: 2px solid transparent;
   margin-bottom: 0;
   white-space: nowrap;
-  font-weight: 1000;
+  font-weight: 700;
   font-size: 15px;
 }
 
 .sub-tab.on {
   color: #1890ff;
   border-bottom-color: #1890ff;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 /* .sub-tabs.ops-tabs {
@@ -2328,6 +2328,186 @@
   gap: 12px;
 }
 
+.ops-dashboard .ops-dimension-filter {
+  margin: 14px 0 16px;
+  padding: 12px 14px 14px;
+  border: 1px solid #e1e9f4;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.ops-dashboard .ops-dimension-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ops-dashboard .ops-dimension-filter-head h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.ops-dashboard .ops-dimension-filter-head p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ops-dashboard .ops-dimension-clear {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #cfe0f6;
+  border-radius: 8px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ops-dashboard .ops-dimension-clear:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.ops-dashboard .ops-dimension-scroll {
+  height: 190px;
+  overflow: auto;
+  border-top: 1px solid #edf2f8;
+  padding: 14px 12px 10px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.ops-dashboard .ops-dimension-loading {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.ops-dashboard .ops-dimension-forest {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 34px;
+  width: max-content;
+  min-width: max-content;
+  min-height: 220px;
+  padding: 0 10px 20px;
+}
+
+.ops-dashboard .ops-dimension-forest::before {
+  content: '';
+  position: absolute;
+  top: 17px;
+  right: 16px;
+  left: 16px;
+  height: 2px;
+  background: #c9d6e6;
+}
+
+.ops-dashboard .ops-dimension-branch {
+  position: relative;
+  flex: 0 0 190px;
+  width: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.ops-dashboard .ops-dimension-node {
+  position: relative;
+  z-index: 1;
+  max-width: 174px;
+  min-height: 34px;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid #d7e2f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-dashboard .ops-dimension-node:hover {
+  border-color: #9cc8ff;
+  color: #1d4ed8;
+  background: #f4f8ff;
+}
+
+.ops-dashboard .ops-dimension-node.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.18);
+}
+
+.ops-dashboard .ops-dimension-node-root {
+  background: #f8fbff;
+}
+
+.ops-dashboard .ops-dimension-children {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  margin-left: 18px;
+  padding: 8px 0 4px 22px;
+}
+
+.ops-dashboard .ops-dimension-children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  left: 0;
+  width: 2px;
+  background: #c9d6e6;
+}
+
+.ops-dashboard .ops-dimension-child {
+  position: relative;
+}
+
+.ops-dashboard .ops-dimension-child::before {
+  content: '';
+  position: absolute;
+  top: 17px;
+  left: -22px;
+  width: 18px;
+  height: 2px;
+  background: #c9d6e6;
+}
+
+.ops-dashboard .ops-dimension-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ops-dashboard .ops-dimension-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.ops-dashboard .ops-dimension-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .ops-dashboard .ops-kpi {
   min-height: 92px;
   padding: 14px 16px;
@@ -2636,6 +2816,23 @@
   .ops-dashboard .ops-kpis,
   .ops-dashboard .ops-top-list {
     grid-template-columns: 1fr;
+  }
+
+  .ops-dashboard .ops-dimension-filter {
+    padding: 10px;
+  }
+
+  .ops-dashboard .ops-dimension-scroll {
+    height: 180px;
+  }
+
+  .ops-dashboard .ops-dimension-branch {
+    flex-basis: 168px;
+    width: 168px;
+  }
+
+  .ops-dashboard .ops-dimension-node {
+    max-width: 152px;
   }
 
   .ops-dashboard .ops-filter {
