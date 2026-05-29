@@ -149,7 +149,7 @@ const innerTab = ref<UserInnerTab>(routeTabFromQuery(route.query.tab));
 const uploadOpen = ref(false);
 const search = ref('');
 const hotSearch = ref('');
-const hotSkillItems = ref<any[]>([]);
+const hotSkills = ref<any[]>([]);
 const hotSkillsLoading = ref(false);
 /** Mock：组织展示名；HTTP：组织 id 字符串（对接 `orgId`） */
 const levelFilter = ref('all');
@@ -930,129 +930,6 @@ const tagOptions = computed(() => {
   return [...opts].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
 });
 
-function hotSkillDownloadCount(skill: any): number {
-  const raw = skill?.downloads ?? skill?.download_count ?? 0;
-  const parsed = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function hotSkillName(skill: any): string {
-  return String(skill?.name ?? skill?.skill_id ?? '未命名 Skill');
-}
-
-function hotSkillDesc(skill: any): string {
-  return String(skill?.description ?? skill?.requirements ?? '暂无描述');
-}
-
-function hotSkillLevel(skill: any): string {
-  return String(skill?.level ?? skill?.publish_level ?? skill?.status ?? '未分级');
-}
-
-function hotSkillLevelRaw(skill: any): string {
-  return String(skill?.publish_level ?? skill?.level ?? skill?.tagOrg ?? '').trim();
-}
-
-function hotSkillOwner(skill: any): string {
-  return String(skill?.createdBy ?? skill?.author ?? '未配置创建人').trim() || '未配置创建人';
-}
-
-function hotSkillCategory(skill: any): string {
-  return String(skill?.tagFunctional ?? skill?.category ?? skill?.categoryGroupName ?? '').trim();
-}
-
-function hotSkillOrg(skill: any): string {
-  return String(skill?.orgName ?? skill?.publish_name ?? skill?.publisher ?? '市场');
-}
-
-function hotSkillDept(skill: any): string {
-  if (hotSkillLevelRaw(skill).includes('组织')) {
-    return String(skill?.orgName ?? skill?.publish_name ?? '').trim() || '未配置组织';
-  }
-  const deptLevels = [
-    skill?.departmentL6,
-    skill?.departmentL5,
-    skill?.departmentL4,
-    skill?.departmentL3,
-    skill?.departmentL2,
-    skill?.departmentL1,
-  ];
-  const directDept = deptLevels.map((item) => String(item ?? '').trim()).find(Boolean);
-  if (directDept) {
-    return directDept;
-  }
-  const raw = String(skill?.dept_name ?? '').trim();
-  const parts = raw
-    .split(/[/>｜|]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return parts[parts.length - 1] || raw || '未配置部门';
-}
-
-function hotSkillTags(skill: any): string[] {
-  const raw = skill?.tags;
-  if (Array.isArray(raw)) {
-    return [...new Set(raw.map((tag) => String(tag).trim()).filter(Boolean))];
-  }
-  return [
-    ...new Set(
-      String(raw ?? '')
-        .split(/[,，;；\s]+/)
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-function hotSkillScopeLabel(skill: any): string {
-  const level = hotSkillLevelRaw(skill);
-  if (level.includes('组织')) {
-    const orgName = String(skill?.orgName ?? skill?.publish_name ?? '').trim();
-    return orgName ? `组织级 · ${orgName}` : '组织级';
-  }
-  if (level.includes('个人')) {
-    return '个人级';
-  }
-  return level;
-}
-
-function hotSkillSearchText(skill: any): string {
-  return [
-    hotSkillName(skill),
-    hotSkillDesc(skill),
-    hotSkillOwner(skill),
-    hotSkillDept(skill),
-    hotSkillCategory(skill),
-    hotSkillOrg(skill),
-    hotSkillLevel(skill),
-    hotSkillScopeLabel(skill),
-    hotSkillTags(skill).join(' '),
-  ]
-    .join(' ')
-    .toLowerCase();
-}
-
-const hotSkillSource = computed(() => {
-  if (hotSkillItems.value.length > 0) {
-    return hotSkillItems.value;
-  }
-  if (newSkills.value.length > 0) {
-    return newSkills.value;
-  }
-  return skills.value;
-});
-
-const hotSkillResults = computed(() => {
-  const q = hotSearch.value.trim().toLowerCase();
-  return [...hotSkillSource.value]
-    .filter((skill) => !q || hotSkillSearchText(skill).includes(q))
-    .sort(
-      (a, b) =>
-        hotSkillDownloadCount(b) - hotSkillDownloadCount(a) ||
-        hotSkillName(a).localeCompare(hotSkillName(b), 'zh-Hans-CN'),
-    )
-    .slice(0, 6);
-});
-
 function toggleOverviewAdvancedPanel(): void {
   overviewAdvancedOpen.value = !overviewAdvancedOpen.value;
   if (!overviewAdvancedOpen.value) {
@@ -1701,14 +1578,10 @@ async function loadHotSkillCards(): Promise<void> {
       pageSize: 6,
       sortBy: 'downloads',
       sortOrder: 'desc',
+      keyword: hotSearch.value,
     });
-    const rows = Array.isArray(res?.data)
-      ? res.data
-      : Array.isArray(res?.data?.records)
-        ? res.data.records
-        : [];
-    if (res?.meta?.success) {
-      hotSkillItems.value = rows;
+    if (res?.meta?.success && res?.data) {
+      hotSkills.value = [...res.data];
     }
   } catch (e) {
     if (transportIsHttp) {
@@ -1717,6 +1590,12 @@ async function loadHotSkillCards(): Promise<void> {
   } finally {
     hotSkillsLoading.value = false;
   }
+}
+
+const onSearchHot = async (e: Event | KeyboardEvent) => {
+  const value = (e.target as HTMLInputElement).value;
+  hotSearch.value = value;
+  await loadHotSkillCards();
 }
 
 const myReleasePageNumValue = ref<number>(1);
@@ -2637,7 +2516,7 @@ async function openDetailPanel(id: any): Promise<void> {
 }
 
 async function openHotSkillDetail(skill: any): Promise<void> {
-  const id = String(skill?.id ?? skill?.skill_id ?? '').trim();
+  const id = String(skill?.id ?? '').trim();
   if (!id) {
     return;
   }
@@ -3931,7 +3810,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               />
             </svg>
           </span>
-          <input v-model="hotSearch" type="search" placeholder="搜索热门 Skill / 创建者 / 标签" />
+          <input v-model="hotSearch" type="search" placeholder="搜索热门 Skill / 创建者 / 描述" @keydown.enter="onSearchHot" @input="onSearchHot" />
         </label>
         <button type="button" class="hot-search-more" @click="goTab('overview')">
           探索全部技能 <span aria-hidden="true">→</span>
@@ -3966,10 +3845,10 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           <span v-if="hotSkillsLoading" class="hot-loading">加载中…</span>
         </div>
 
-        <div v-if="hotSkillResults.length > 0" class="hot-skill-grid">
+        <div v-if="hotSkills.length > 0" class="hot-skill-grid">
           <SkillCard
-            v-for="(s, index) in hotSkillResults"
-            :key="`${s.id ?? s.skill_id ?? hotSkillName(s)}-${index}`"
+            v-for="(s, index) in hotSkills"
+            :key="s.id"
             :skill="s"
             class="market-skill-card"
             menu-mode="download-only"
