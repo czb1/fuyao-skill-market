@@ -407,6 +407,12 @@ const OVERVIEW_PREFETCH_MIN_DISTANCE = 480;
 const OVERVIEW_PREFETCH_VIEWPORT_RATIO = 0.6;
 const OVERVIEW_POST_RENDER_CHECK_DELAY = 80;
 let overviewPostRenderCheckTimer: ReturnType<typeof window.setTimeout> | null = null;
+let overviewSuppressNextScrollLoad = false;
+
+type OverviewFetchOptions = {
+  resetScroll?: boolean;
+  suppressPostRenderCheck?: boolean;
+};
 
 function resetOverviewScrollState(): void {
   if (overviewScrollRaf) {
@@ -416,6 +422,13 @@ function resetOverviewScrollState(): void {
   if (overviewPostRenderCheckTimer) {
     window.clearTimeout(overviewPostRenderCheckTimer);
     overviewPostRenderCheckTimer = null;
+  }
+}
+
+function resetOverviewListScrollPosition(): void {
+  const el = marketContentRef.value;
+  if (el) {
+    el.scrollTop = 0;
   }
 }
 
@@ -444,6 +457,9 @@ function overviewNearBottom(): boolean {
 }
 
 async function loadNextOverviewRemotePageIfNeeded(): Promise<void> {
+  if (overviewSuppressNextScrollLoad) {
+    return;
+  }
   if (
     innerTab.value !== 'overview' ||
     overviewRemoteLoading.value ||
@@ -1171,12 +1187,19 @@ const overviewFilteredAll = computed(() => {
   return sortOverviewSkills(list);
 });
 
-async function startOverviewRemoteFetch(isPageOver?: boolean): Promise<void> {
+async function startOverviewRemoteFetch(
+  isPageOver?: boolean,
+  options: OverviewFetchOptions = {},
+): Promise<void> {
   if (overviewRemoteLoading.value) {
     return;
   }
   if (!isPageOver) {
     resetOverviewScrollState();
+    if (options.resetScroll) {
+      overviewSuppressNextScrollLoad = true;
+      resetOverviewListScrollPosition();
+    }
     page.pageIndex = 1;
     overviewFilterObj.value.pageNum = 1;
     overviewRemoteExhausted.value = false;
@@ -1206,11 +1229,21 @@ async function startOverviewRemoteFetch(isPageOver?: boolean): Promise<void> {
   } finally {
     overviewRemoteLoading.value = false;
     await nextTick();
+    if (!isPageOver && options.resetScroll) {
+      resetOverviewListScrollPosition();
+    }
+    if (options.suppressPostRenderCheck) {
+      window.setTimeout(() => {
+        overviewSuppressNextScrollLoad = false;
+      }, OVERVIEW_POST_RENDER_CHECK_DELAY);
+      return;
+    }
     if (overviewPostRenderCheckTimer) {
       window.clearTimeout(overviewPostRenderCheckTimer);
     }
     overviewPostRenderCheckTimer = window.setTimeout(() => {
       overviewPostRenderCheckTimer = null;
+      overviewSuppressNextScrollLoad = false;
       scheduleOverviewLoadMoreCheck();
     }, OVERVIEW_POST_RENDER_CHECK_DELAY);
   }
@@ -1336,12 +1369,18 @@ const overviewFilterSummary = computed(() => {
 });
 
 const changeSort = async (type: 'time' | 'downloads' | 'rating') => {
+  if (overviewSort.value === type) {
+    return;
+  }
   overviewSort.value = type;
   overviewFilterObj.value.pageNum = 1;
   page.pageIndex = 1;
   overviewFilterObj.value.sortBy = type;
   overviewFilterObj.value.sortOrder = 'desc';
-  await startOverviewRemoteFetch();
+  await startOverviewRemoteFetch(false, {
+    resetScroll: true,
+    suppressPostRenderCheck: true,
+  });
 };
 
 watch(levelFilter, () => {
