@@ -2435,11 +2435,8 @@ async function onDownloadToFormData(id: string, version?: string): Promise<FormD
     return null;
   }
 }
-const updateSkillData = async () => {
-  const formData = await onDownloadToFormData(
-    detailPanelSkill.value.id,
-    detailPanelSkill.value.currentVersion,
-  );
+const updateSkillData = async (id: string, currentVersion: string) => {
+  const formData = await onDownloadToFormData(id, currentVersion);
   if (formData) {
     const res = await skillBaseService.clearAndUploadWorkspace(formData, userId.value, agentId);
     console.log(res);
@@ -2837,6 +2834,7 @@ const onClickFilterRelease = async (key: any) => {
 const opsImportedBundle = ref<OpsDashboardBundle | null>(null);
 const opsImporting = ref(false);
 const opsExcelInputRef = ref<HTMLInputElement | null>(null);
+
 const opsBoardSystem = ref<'fuyao' | 'company'>('fuyao');
 const changeSystem = async (value: 'fuyao' | 'company') => {
   opsBoardSystem.value = value;
@@ -3606,6 +3604,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
             layout="overviewMarket"
             @download="onDownload(s.id, s.currentVersion)"
             @open-detail="openHotSkillDetail(s)"
+            @update-skill-data="updateHotSkillData"
           />
         </div>
         <p v-else class="empty hot-empty">

@@ -1055,7 +1055,7 @@ const onSubmit = async (): Promise<void> => {
   padding: 18px 18px 18px 18px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  background: rgb(245,247,251);
+  background: rgb(245, 247, 251);
   color: #0f172a;
   font-size: 13px;
   line-height: 1.7;
