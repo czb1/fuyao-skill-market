@@ -161,6 +161,8 @@ const overviewDimensionRowRef = ref<HTMLElement | null>(null);
 const overviewDimensionInlineRef = ref<HTMLElement | null>(null);
 const overviewDimensionDropdownRef = ref<HTMLElement | null>(null);
 const overviewDimensionDropdownStyle = ref<CSSProperties>({});
+const topbarGlass = ref(false);
+let topbarScrollRaf = 0;
 const tabPanelRef = ref<HTMLElement | null>(null);
 const tabPanelMinHeight = ref(0);
 const marketContentRef = ref<HTMLElement | null>(null);
@@ -898,6 +900,7 @@ function onOverviewDimensionKeydown(ev: KeyboardEvent): void {
 watch([businessDimensionOptions, innerTab], () => {
   void nextTick(() => {
     scheduleOverviewDimensionOverflowCheck();
+    scheduleTopbarGlassUpdate();
   });
 });
 
@@ -916,6 +919,25 @@ function toggleOverviewAdvancedPanel(): void {
   if (!overviewAdvancedOpen.value) {
     overviewDeptCascaderOpen.value = false;
   }
+}
+
+function updateTopbarGlass(): void {
+  const doc = document.documentElement;
+  const body = document.body;
+  const scrollHeight = Math.max(doc.scrollHeight, body?.scrollHeight ?? 0);
+  const viewportHeight = window.innerHeight || doc.clientHeight;
+  const hasPageScrollbar = scrollHeight > viewportHeight + 1;
+  topbarGlass.value = hasPageScrollbar && window.scrollY > 0;
+}
+
+function scheduleTopbarGlassUpdate(): void {
+  if (topbarScrollRaf) {
+    return;
+  }
+  topbarScrollRaf = window.requestAnimationFrame(() => {
+    topbarScrollRaf = 0;
+    updateTopbarGlass();
+  });
 }
 
 const tabPanelFillStyle = computed(() => {
@@ -1096,8 +1118,11 @@ onMounted(async () => {
   document.addEventListener('mousedown', onOverviewDimensionDocDown);
   document.addEventListener('keydown', onOverviewDimensionKeydown);
   window.addEventListener('resize', scheduleOverviewDimensionOverflowCheck);
+  window.addEventListener('scroll', scheduleTopbarGlassUpdate, { passive: true });
+  window.addEventListener('resize', scheduleTopbarGlassUpdate);
   void nextTick(() => {
     scheduleOverviewDimensionOverflowCheck();
+    scheduleTopbarGlassUpdate();
   });
 });
 
@@ -1117,9 +1142,15 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onOverviewDimensionDocDown);
   document.removeEventListener('keydown', onOverviewDimensionKeydown);
   window.removeEventListener('resize', scheduleOverviewDimensionOverflowCheck);
+  window.removeEventListener('scroll', scheduleTopbarGlassUpdate);
+  window.removeEventListener('resize', scheduleTopbarGlassUpdate);
   if (overviewScrollRaf) {
     window.cancelAnimationFrame(overviewScrollRaf);
     overviewScrollRaf = 0;
+  }
+  if (topbarScrollRaf) {
+    window.cancelAnimationFrame(topbarScrollRaf);
+    topbarScrollRaf = 0;
   }
   if (overviewPostRenderCheckTimer) {
     window.clearTimeout(overviewPostRenderCheckTimer);
@@ -3392,7 +3423,11 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
   </div>
   <div
     class="user-shell skill-market-shell"
-    :class="{ 'is-hot-tab': innerTab === 'hot', 'is-overview-tab': innerTab === 'overview' }"
+    :class="{
+      'is-hot-tab': innerTab === 'hot',
+      'is-overview-tab': innerTab === 'overview',
+      'is-topbar-glass': topbarGlass,
+    }"
   >
     <header class="market-topbar">
       <nav
