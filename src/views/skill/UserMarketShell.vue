@@ -1128,6 +1128,7 @@ onBeforeUnmount(() => {
   if (overviewDimensionResizeFrame) {
     window.cancelAnimationFrame(overviewDimensionResizeFrame);
   }
+  stopOpsDimensionResize();
 });
 
 /** 本地（Mock）全量筛选结果，用于渐进展示 */
@@ -2860,6 +2861,63 @@ const opsDeptDimensionStatsLoading = ref(false);
 const opsDeptSkillRowsLoading = ref(false);
 let opsDeptDimensionStatsRequestSeq = 0;
 let opsDeptSkillRowsRequestSeq = 0;
+const OPS_DIMENSION_DEFAULT_HEIGHT = 190;
+const OPS_DIMENSION_MIN_HEIGHT = 150;
+const OPS_DIMENSION_MAX_HEIGHT = 560;
+const opsDimensionHeight = ref(OPS_DIMENSION_DEFAULT_HEIGHT);
+const opsDimensionResizing = ref(false);
+let opsDimensionResizeStartY = 0;
+let opsDimensionResizeStartHeight = OPS_DIMENSION_DEFAULT_HEIGHT;
+let opsDimensionPreviousUserSelect = '';
+let opsDimensionPreviousCursor = '';
+
+const opsDimensionScrollStyle = computed((): CSSProperties => {
+  return {
+    height: `${opsDimensionHeight.value}px`,
+  };
+});
+
+function clampOpsDimensionHeight(value: number): number {
+  return Math.min(OPS_DIMENSION_MAX_HEIGHT, Math.max(OPS_DIMENSION_MIN_HEIGHT, value));
+}
+
+function onOpsDimensionResizeMove(event: PointerEvent): void {
+  if (!opsDimensionResizing.value) {
+    return;
+  }
+  const delta = event.clientY - opsDimensionResizeStartY;
+  opsDimensionHeight.value = clampOpsDimensionHeight(opsDimensionResizeStartHeight + delta);
+}
+
+function stopOpsDimensionResize(): void {
+  if (!opsDimensionResizing.value) {
+    return;
+  }
+  opsDimensionResizing.value = false;
+  window.removeEventListener('pointermove', onOpsDimensionResizeMove);
+  window.removeEventListener('pointerup', stopOpsDimensionResize);
+  window.removeEventListener('pointercancel', stopOpsDimensionResize);
+  document.body.style.userSelect = opsDimensionPreviousUserSelect;
+  document.body.style.cursor = opsDimensionPreviousCursor;
+}
+
+function startOpsDimensionResize(event: PointerEvent): void {
+  event.preventDefault();
+  opsDimensionResizing.value = true;
+  opsDimensionResizeStartY = event.clientY;
+  opsDimensionResizeStartHeight = opsDimensionHeight.value;
+  opsDimensionPreviousUserSelect = document.body.style.userSelect;
+  opsDimensionPreviousCursor = document.body.style.cursor;
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'ns-resize';
+  window.addEventListener('pointermove', onOpsDimensionResizeMove);
+  window.addEventListener('pointerup', stopOpsDimensionResize);
+  window.addEventListener('pointercancel', stopOpsDimensionResize);
+}
+
+function resetOpsDimensionHeight(): void {
+  opsDimensionHeight.value = OPS_DIMENSION_DEFAULT_HEIGHT;
+}
 
 const opsOverviewFilterObj = ref<any>({
   system: 'company',
@@ -4599,7 +4657,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               </button>
             </div>
           </div>
-          <div class="ops-dimension-scroll">
+          <div class="ops-dimension-scroll" :style="opsDimensionScrollStyle">
             <div v-if="businessDimensionLoading" class="ops-dimension-loading">业务维度加载中…</div>
             <div v-else class="ops-dimension-forest">
               <div
@@ -4639,6 +4697,17 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               </div>
             </div>
           </div>
+          <button
+            type="button"
+            class="ops-dimension-resize-handle"
+            :class="{ active: opsDimensionResizing }"
+            aria-label="拖拽调整业务场景树高度，双击恢复默认高度"
+            title="拖拽调整高度，双击恢复默认高度"
+            @pointerdown="startOpsDimensionResize"
+            @dblclick="resetOpsDimensionHeight"
+          >
+            <span aria-hidden="true" />
+          </button>
         </section>
 
         <div class="ops-main-grid">

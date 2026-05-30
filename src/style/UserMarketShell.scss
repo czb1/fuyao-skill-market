@@ -2334,6 +2334,8 @@
   border: 1px solid #e1e9f4;
   border-radius: 8px;
   background: #fbfdff;
+  position: relative;
+  z-index: 2;
 }
 
 .ops-dashboard .ops-dimension-filter-head {
@@ -2436,6 +2438,36 @@
   border-top: 1px solid #edf2f8;
   padding: 14px 12px 10px;
   scrollbar-gutter: stable both-edges;
+}
+
+.ops-dashboard .ops-dimension-resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 18px;
+  margin-top: 2px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: ns-resize;
+}
+
+.ops-dashboard .ops-dimension-resize-handle:hover,
+.ops-dashboard .ops-dimension-resize-handle.active {
+  background: #eef6ff;
+}
+
+.ops-dashboard .ops-dimension-resize-handle span {
+  width: 54px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.ops-dashboard .ops-dimension-resize-handle:hover span,
+.ops-dashboard .ops-dimension-resize-handle.active span {
+  background: #93c5fd;
 }
 
 .ops-dashboard .ops-dimension-loading {
@@ -9065,7 +9097,7 @@ span {
   background: #cbd5e1;
 }
 
-/* Ops dimension tree must scroll inside its own viewport, never resize the whole page. */
+/* Ops dimension tree expands over the detail list so users can scan deeper levels quickly. */
 .skill-market-shell:not(.is-overview-tab) .panel.tab-panel.ops {
   width: 100%;
   max-width: 100%;
@@ -9079,7 +9111,7 @@ span {
   max-width: 100%;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .ops-dashboard-card.ops-dashboard > *,
