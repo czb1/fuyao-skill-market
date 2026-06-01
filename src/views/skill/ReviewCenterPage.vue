@@ -16,7 +16,6 @@ const taskCards = reactive<ReviewTaskCard[]>([]);
 
 const selectedTaskId = ref(taskCards[0]?.id ?? '');
 
-const scoreTabs = ref<string[]>([]);
 const computeChannels = reactive<ComputeChannelRow[]>([]);
 const computeChannelTypes = ref<string[]>([]);
 const isComputeChannelModalOpen = ref(false);
@@ -42,13 +41,59 @@ const isHistoryDrawerOpen = ref(false);
 const greenChannelOptions = ref<string[]>([]);
 const selectedGreenChannel = ref(greenChannelOptions.value[0] ?? '');
 const isGreenChannelSelectOpen = ref(false);
-const expertScoreTab = computed(() => scoreTabs.value[scoreTabs.value.length - 1] ?? '');
-const activeScoreTab = ref('');
 const overallReviewDimension = ref('');
 const scoreInputText = ref('');
 const isScoreEditing = ref(false);
 const scoreInputRef = ref<HTMLInputElement | null>(null);
 const reviewHistoryRecords = ref<ReviewHistoryRecord[]>([]);
+const reviewDetailTabs = ['AI评审', '专家评审'] as const;
+type ReviewDetailTab = (typeof reviewDetailTabs)[number];
+const activeReviewDetailTab = ref<ReviewDetailTab>('AI评审');
+
+const maxAiReviewScore = 100;
+const aiReviewDimensions = [
+  {
+    key: 'T',
+    name: 'Trust',
+    label: '可信任度',
+    score: 90,
+    tone: 'green',
+    summary:
+      '双实验室交叉验证，未发现 P0/P1 级安全风险，文档全量英文可读；建议补齐中文说明和权限边界。',
+  },
+  {
+    key: 'R',
+    name: 'Reliability',
+    label: '可靠性',
+    score: 92,
+    tone: 'blue',
+    summary: '核心流程稳定，异常输入与失败恢复路径描述较完整，能给新手明确的问题定位与修复指引。',
+  },
+  {
+    key: 'A',
+    name: 'Adaptability',
+    label: '适用性',
+    score: 90,
+    tone: 'amber',
+    summary: '适用场景、触发条件和不适用范围较清晰，支持自动提醒与手动记录两类使用方式。',
+  },
+  {
+    key: 'C',
+    name: 'Convention',
+    label: '规范性',
+    score: 88,
+    tone: 'purple',
+    summary: '目录结构清晰，模板示例丰富；主文档略密，新用户仍需要更明确的避坑指南。',
+  },
+  {
+    key: 'E',
+    name: 'Effectiveness',
+    label: '有效性',
+    score: 94,
+    tone: 'red',
+    summary: '能把可复用经验沉淀成稳定流程，对减少重复踩坑、沉淀团队知识有直接帮助。',
+  },
+];
 
 function replaceReactiveArray<T>(target: T[], source: T[]) {
   target.splice(0, target.length, ...source);
@@ -67,9 +112,6 @@ function applyReviewCenterData(data: ReviewCenterData) {
   rankingCards.value = data.rankingCards;
   replaceReactiveArray(taskCards, data.taskCards);
   selectedTaskId.value = taskCards[0]?.id ?? '';
-
-  scoreTabs.value = data.scoreTabs;
-  activeScoreTab.value = scoreTabs.value[0] ?? '';
 
   replaceReactiveArray(computeChannels, data.computeChannels);
   computeChannelTypes.value = data.computeChannelTypes;
@@ -112,6 +154,42 @@ const activeMetrics = computed(() => {
       tone: task.hasReviewed ? 'green' : 'indigo',
     },
   ];
+});
+
+function buildRadarPoints(scale: number) {
+  const center = 50;
+  const radius = 34 * scale;
+  return aiReviewDimensions
+    .map((_, index) => {
+      const angle = -Math.PI / 2 + (index * 2 * Math.PI) / aiReviewDimensions.length;
+      const x = center + Math.cos(angle) * radius;
+      const y = center + Math.sin(angle) * radius;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+}
+
+const aiReviewRadarGrid = computed(() => [0.25, 0.5, 0.75, 1].map(buildRadarPoints));
+const aiReviewRadarPoints = computed(() =>
+  aiReviewDimensions
+    .map((dimension, index) => {
+      const scale = dimension.score / maxAiReviewScore;
+      const angle = -Math.PI / 2 + (index * 2 * Math.PI) / aiReviewDimensions.length;
+      const radius = 34 * scale;
+      const x = 50 + Math.cos(angle) * radius;
+      const y = 50 + Math.sin(angle) * radius;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' '),
+);
+const aiReviewOverallScore = computed(() => {
+  const total = aiReviewDimensions.reduce((sum, dimension) => sum + dimension.score, 0);
+  const score = Math.round((total / aiReviewDimensions.length) * 10) / 10;
+  return Number.isInteger(score) ? String(score) : score.toFixed(1);
+});
+const aiReviewOverallSummary = computed(() => {
+  const skillName = activeTask.value?.name ?? '该 Skill';
+  return `${skillName} 的功能边界和使用流程比较完整，质量良好。主要优点是文档详细、使用灵活、支持多种 AI 工具协作；不足是部分辅助脚本仍偏简单，说明文本可以再贴近中文用户。`;
 });
 
 function formatOverallScore(score: number): string {
@@ -252,7 +330,6 @@ function selectTask(taskId: string) {
   }
 }
 
-const isExpertScoreTab = computed(() => activeScoreTab.value === expertScoreTab.value);
 const overallReviewDimensionDetail = computed(
   () => reviewDimensionDetails[overallReviewDimension.value],
 );
@@ -477,65 +554,121 @@ onMounted(async () => {
               </span>
             </div>
 
-            <div class="score-tabs" role="tablist" aria-label="评分类型">
-              <!-- <button
-                v-for="tab in scoreTabs"
+            <div class="review-detail-tabs" role="tablist" aria-label="评审详情类型">
+              <button
+                v-for="tab in reviewDetailTabs"
+                :id="`review-detail-tab-${tab}`"
                 :key="tab"
-                :class="{ 'is-active': activeScoreTab === tab }"
+                :class="{ 'is-active': activeReviewDetailTab === tab }"
                 type="button"
-                @click="activeScoreTab = tab"
+                role="tab"
+                :aria-selected="activeReviewDetailTab === tab"
+                :aria-controls="`review-detail-panel-${tab}`"
+                @click="activeReviewDetailTab = tab"
               >
                 {{ tab }}
-              </button> -->
+              </button>
             </div>
 
-            <div v-if="false && !isExpertScoreTab" class="score-tab-pane">
-              <div class="skill-preview">
-                <div class="file-tree">
-                  <strong>文件结构</strong>
-                  <ul>
-                    <li>test2-skill/</li>
-                    <li class="is-selected">SKILL.md</li>
-                    <li>deploy/</li>
-                    <li>values.yaml</li>
-                    <li>chart.yaml</li>
-                    <li>ci/Jenkinsfile</li>
-                  </ul>
-                </div>
-                <div class="readme-preview">
-                  <strong>SKILL.md</strong>
-                  <h3>test2 Skill</h3>
-                  <p>多版本历史 + deploy / ci 目录，正文用于与 test1 区分效果。</p>
-                  <p>当前版本覆盖批处理、交付模板和常见异常处理流程。</p>
-                </div>
-              </div>
-
-              <div class="structure-panel">
-                <div class="section-heading">
-                  <h3>{{ activeScoreTab }}打分情况</h3>
-                  <span>专家评分维度：完整性、清晰度、可复用性</span>
-                </div>
-                <div class="score-composer">
-                  <div class="score-scale">
-                    <span>0</span>
-                    <div class="score-scale__bar"><span style="width: 84%"></span></div>
-                    <span>100</span>
+            <section
+              v-show="activeReviewDetailTab === 'AI评审'"
+              id="review-detail-panel-AI评审"
+              class="ai-review-panel"
+              role="tabpanel"
+              aria-labelledby="review-detail-tab-AI评审"
+            >
+              <div class="ai-review-brief">
+                <div class="ai-review-brief__icon">i</div>
+                <div>
+                  <h2>TRACE 评测维度说明</h2>
+                  <p>
+                    SkillHub TRACE
+                    评测体系从可信任度（Trust）、可靠性（Reliability）、适用性（Adaptability）、规范性（Convention）、有效性（Effectiveness）五个维度评估
+                    Skill 质量。当前结果为 AI 自动化检测 mock 数据，仅供专家评审前参考。
+                  </p>
+                  <div class="ai-review-brief__meta">
+                    <span>评测主要基于文档结构、任务边界、异常处理和使用反馈生成。</span>
+                    <button type="button">评测建议反馈</button>
                   </div>
-                  <textarea
-                    aria-label="结构打分情况"
-                    placeholder="记录评审意见、扣分点和改进建议"
-                  ></textarea>
                 </div>
               </div>
-            </div>
 
-            <section class="expert-review expert-review--inline" aria-labelledby="expert-title">
+              <div class="ai-review-summary-card">
+                <div class="ai-radar" aria-hidden="true">
+                  <svg viewBox="0 0 100 100" role="img">
+                    <polygon
+                      v-for="points in aiReviewRadarGrid"
+                      :key="points"
+                      class="ai-radar__grid"
+                      :points="points"
+                    />
+                    <line x1="50" y1="50" x2="50" y2="16" />
+                    <line x1="50" y1="50" x2="82.3" y2="39.5" />
+                    <line x1="50" y1="50" x2="70" y2="77.5" />
+                    <line x1="50" y1="50" x2="30" y2="77.5" />
+                    <line x1="50" y1="50" x2="17.7" y2="39.5" />
+                    <polygon class="ai-radar__value" :points="aiReviewRadarPoints" />
+                  </svg>
+                  <span class="ai-radar__label ai-radar__label--top">T 可信任度</span>
+                  <span class="ai-radar__label ai-radar__label--right">R 可靠性</span>
+                  <span class="ai-radar__label ai-radar__label--bottom-right">A 适用性</span>
+                  <span class="ai-radar__label ai-radar__label--bottom-left">C 规范性</span>
+                  <span class="ai-radar__label ai-radar__label--left">E 有效性</span>
+                </div>
+                <div class="ai-review-score">
+                  <div>
+                    <strong>{{ aiReviewOverallScore }}</strong>
+                    <span>/ 100</span>
+                  </div>
+                  <em>综合评级：优秀</em>
+                  <p>{{ aiReviewOverallSummary }}</p>
+                </div>
+              </div>
+
+              <div class="ai-review-detail-card">
+                <h2>评测详情</h2>
+                <article
+                  v-for="dimension in aiReviewDimensions"
+                  :key="dimension.key"
+                  :class="['ai-dimension-row', `is-${dimension.tone}`]"
+                >
+                  <div class="ai-dimension-row__header">
+                    <span class="ai-dimension-row__icon">{{ dimension.key }}</span>
+                    <strong>{{ dimension.key }} · {{ dimension.name }}</strong>
+                    <em>{{ dimension.label }}</em>
+                  </div>
+                  <div class="ai-dimension-row__score">
+                    <div class="ai-dimension-row__bar">
+                      <span
+                        :style="{ width: `${(dimension.score / maxAiReviewScore) * 100}%` }"
+                      ></span>
+                    </div>
+                    <strong>{{ dimension.score }} / 100</strong>
+                  </div>
+                  <p>{{ dimension.summary }}</p>
+                </article>
+              </div>
+            </section>
+
+            <section
+              v-show="activeReviewDetailTab === '专家评审'"
+              id="review-detail-panel-专家评审"
+              class="expert-review expert-review--inline"
+              role="tabpanel"
+              aria-labelledby="review-detail-tab-专家评审"
+            >
               <div class="expert-review__header">
                 <div>
                   <p class="review-hero__eyebrow">Expert Score Detail</p>
                   <h2 id="expert-title">专家评审打分详情</h2>
                 </div>
-                <button type="button" @click="isHistoryDrawerOpen = true">历史评审记录</button>
+                <div class="expert-review__actions">
+                  <button type="button" @click="isHistoryDrawerOpen = true">历史评审记录</button>
+                  <button type="button" class="expert-review__action-btn--draft">保存草稿</button>
+                  <button type="button" class="expert-review__action-btn--primary">
+                    提交评审意见
+                  </button>
+                </div>
               </div>
 
               <div class="expert-editor">
@@ -625,42 +758,6 @@ onMounted(async () => {
                       </div>
                     </div>
                   </div>
-                  <div class="green-channel-select">
-                    <span class="green-channel-select__label">是否开通绿色通道</span>
-                    <div class="green-channel-select__control">
-                      <button
-                        class="green-channel-select__button"
-                        type="button"
-                        :aria-expanded="isGreenChannelSelectOpen"
-                        aria-haspopup="listbox"
-                        @click="isGreenChannelSelectOpen = !isGreenChannelSelectOpen"
-                      >
-                        {{ selectedGreenChannel }}
-                      </button>
-                      <div
-                        v-if="isGreenChannelSelectOpen"
-                        class="green-channel-select__menu"
-                        role="listbox"
-                        aria-label="绿色通道选择"
-                      >
-                        <button
-                          v-for="option in greenChannelOptions"
-                          :key="option"
-                          type="button"
-                          class="green-channel-select__option"
-                          :class="{ 'is-selected': selectedGreenChannel === option }"
-                          role="option"
-                          :aria-selected="selectedGreenChannel === option"
-                          @click="
-                            selectedGreenChannel = option;
-                            isGreenChannelSelectOpen = false;
-                          "
-                        >
-                          {{ option }}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
                 <label class="review-textarea">
                   <span>{{ overallReviewDimension }}详情</span>
@@ -669,53 +766,6 @@ onMounted(async () => {
               </div>
             </section>
           </section>
-
-          <aside class="support-column" aria-label="资源与榜单">
-            <section class="side-panel">
-              <div class="side-panel__header">
-                <h2>算力 / Token 绿色通道</h2>
-                <button type="button" aria-label="增加算力" @click="openComputeChannelModal">
-                  +
-                </button>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>人员</th>
-                    <th>开通类型</th>
-                    <th>状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="channel in computeChannels" :key="channel.id">
-                    <td>
-                      {{ channel.name }}<span>{{ channel.id }}</span>
-                    </td>
-                    <td>{{ channel.type }}</td>
-                    <td>{{ channel.status }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-
-            <section class="side-panel">
-              <div class="side-panel__header">
-                <h2>勋章榜单</h2>
-                <button type="button" aria-label="发放勋章" @click="openMedalAwardModal">+</button>
-              </div>
-              <div class="medal-list">
-                <article v-for="row in medalRows" :key="row.name" class="medal-row">
-                  <div>
-                    <strong>{{ row.name }}</strong>
-                    <span>{{ row.owner }} · 获得 {{ row.count }} 枚</span>
-                  </div>
-                  <div class="medal-icons">
-                    <span v-for="medal in row.medals" :key="medal">{{ medal.slice(0, 1) }}</span>
-                  </div>
-                </article>
-              </div>
-            </section>
-          </aside>
         </div>
       </section>
     </div>
@@ -944,7 +994,7 @@ onMounted(async () => {
       <header class="history-drawer__header">
         <div>
           <p>历史评审记录</p>
-          <h2>{{ activeTask.name }}</h2>
+          <h2>{{ activeTask?.name ?? 'Skill' }}</h2>
         </div>
         <button
           class="history-drawer__close"
@@ -987,7 +1037,8 @@ onMounted(async () => {
 
 <style scoped>
 .review-center-page {
-  min-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   background: #f4f7fb;
   color: #17233d;
   font-size: 14px;
@@ -1121,7 +1172,7 @@ onMounted(async () => {
 
 .review-shell {
   display: block;
-  min-height: calc(100vh - 70px);
+  min-height: 0;
 }
 
 .review-sidebar {
@@ -1323,10 +1374,16 @@ th {
 }
 
 .review-board {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 190px);
+  min-height: 0;
   padding: 18px;
+  overflow: hidden;
 }
 
 .board-toolbar {
+  flex: 0 0 auto;
   align-items: flex-start;
   margin-bottom: 18px;
 }
@@ -1381,19 +1438,21 @@ th {
 }
 
 .board-layout {
-  --review-workspace-h: 460px;
+  --review-workspace-h: auto;
   display: grid;
-  grid-template-columns: 220px minmax(420px, 1fr) 280px;
+  grid-template-columns: 220px minmax(0, 1fr) minmax(200px, 240px);
   gap: 18px;
-  align-items: start;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-height: 0;
 }
 
 .task-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  /* max-height: var(--review-workspace-h); */
-  height: 700px;
+  min-height: 0;
+  height: auto;
   padding-right: 8px;
   border-right: 1px solid #e2e8f0;
   overflow-x: hidden;
@@ -1465,11 +1524,17 @@ th {
 }
 
 .skill-detail {
+  display: flex;
+  flex-direction: column;
+  width: calc(100vw - 220px);
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .metric-row {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   gap: 10px;
 }
@@ -1508,35 +1573,406 @@ th {
   color: #047857;
 }
 
-.score-tabs {
+.review-detail-tabs {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
-  gap: 0;
+  gap: 4px;
+  width: fit-content;
+  margin-top: 12px;
+  padding: 4px;
+  border: 1px solid #dbe5f2;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.review-detail-tabs button {
+  min-width: 112px;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #52647d;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.review-detail-tabs button:hover {
+  background: #edf4ff;
+  color: #1d4ed8;
+}
+
+.review-detail-tabs button.is-active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+}
+
+.ai-review-panel {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 16px;
+  align-content: start;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin-top: 12px;
+  padding-right: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.ai-review-panel::-webkit-scrollbar,
+.expert-review--inline::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ai-review-panel::-webkit-scrollbar-thumb,
+.expert-review--inline::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.ai-review-panel::-webkit-scrollbar-thumb:hover,
+.expert-review--inline::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.ai-review-brief,
+.ai-review-summary-card,
+.ai-review-detail-card {
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.ai-review-brief {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 20px;
+  border-top: 4px solid #6366f1;
+  background: linear-gradient(135deg, #f8fbff 0%, #fbf7ff 100%);
+}
+
+.ai-review-brief__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.ai-review-brief h2,
+.ai-review-detail-card h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.ai-review-brief p {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.ai-review-brief__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   margin-top: 12px;
 }
 
-.score-tabs button {
-  min-width: 116px;
-  height: 34px;
-  border: 1px solid #0f172a;
-  background: #f8fafc;
-  color: #253857;
+.ai-review-brief__meta span {
+  position: relative;
+  padding-left: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ai-review-brief__meta span::before {
+  position: absolute;
+  top: 0.62em;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f59e0b;
+  content: '';
+}
+
+.ai-review-brief__meta button {
+  flex-shrink: 0;
+  min-width: 108px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
   font: inherit;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.score-tabs button:first-child {
-  border-radius: 8px 0 0 8px;
+.ai-review-summary-card {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.85fr) minmax(280px, 1.15fr);
+  gap: 18px;
+  padding: 22px;
+  border-color: #edf1f7;
+  box-shadow: 0 8px 22px rgba(25, 43, 75, 0.05);
 }
 
-.score-tabs button:last-child {
-  border-radius: 0 8px 8px 0;
+.ai-radar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 245px;
 }
 
-.score-tabs button.is-active {
-  background: #97d9ff;
-  color: #0f3a6b;
+.ai-radar svg {
+  width: min(230px, 78%);
+  height: auto;
+  overflow: visible;
+}
+
+.ai-radar__grid {
+  fill: rgba(99, 102, 241, 0.05);
+  stroke: #d9defd;
+  stroke-width: 0.7;
+}
+
+.ai-radar line {
+  stroke: #e1e7ff;
+  stroke-width: 0.7;
+}
+
+.ai-radar__value {
+  fill: rgba(99, 102, 241, 0.2);
+  stroke: #6366f1;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.ai-radar__label {
+  position: absolute;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ai-radar__label--top {
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.ai-radar__label--right {
+  top: 36%;
+  right: 0;
+}
+
+.ai-radar__label--bottom-right {
+  right: 8%;
+  bottom: 12px;
+}
+
+.ai-radar__label--bottom-left {
+  bottom: 12px;
+  left: 8%;
+}
+
+.ai-radar__label--left {
+  top: 36%;
+  left: 0;
+}
+
+.ai-review-score {
+  align-self: center;
+  min-width: 0;
+}
+
+.ai-review-score div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.ai-review-score strong {
+  color: #101828;
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ai-review-score span {
+  color: #94a3b8;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.ai-review-score em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 12px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.ai-review-score p {
+  margin: 14px 0 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.ai-review-detail-card {
+  padding: 18px 24px 6px;
+  border-color: #edf1f7;
+}
+
+.ai-dimension-row {
+  padding: 18px 0;
+  border-top: 1px solid #eef2f7;
+}
+
+.ai-dimension-row:first-of-type {
+  margin-top: 8px;
+}
+
+.ai-dimension-row__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ai-dimension-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ai-dimension-row__header strong {
+  color: #101828;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.ai-dimension-row__header em {
+  color: #64748b;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.ai-dimension-row__score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.ai-dimension-row__bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f1f5f9;
+}
+
+.ai-dimension-row__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.ai-dimension-row__score strong {
+  color: #334155;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.ai-dimension-row p {
+  margin: 12px 0 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.ai-dimension-row.is-green .ai-dimension-row__icon {
+  background: #dcfce7;
+  color: #059669;
+}
+
+.ai-dimension-row.is-green .ai-dimension-row__bar span {
+  background: #22c55e;
+}
+
+.ai-dimension-row.is-blue .ai-dimension-row__icon {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.ai-dimension-row.is-blue .ai-dimension-row__bar span {
+  background: #38bdf8;
+}
+
+.ai-dimension-row.is-amber .ai-dimension-row__icon {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.ai-dimension-row.is-amber .ai-dimension-row__bar span {
+  background: #facc15;
+}
+
+.ai-dimension-row.is-purple .ai-dimension-row__icon {
+  background: #f3e8ff;
+  color: #8b5cf6;
+}
+
+.ai-dimension-row.is-purple .ai-dimension-row__bar span {
+  background: #c084fc;
+}
+
+.ai-dimension-row.is-red .ai-dimension-row__icon {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.ai-dimension-row.is-red .ai-dimension-row__bar span {
+  background: #f87171;
 }
 
 .skill-preview {
@@ -1669,6 +2105,9 @@ input:focus {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .side-panel {
@@ -1740,14 +2179,20 @@ input:focus {
 }
 
 .expert-review--inline {
+  flex: 1 1 auto;
   max-width: none;
+  width: 100%;
   min-width: 0;
+  min-height: 0;
   margin: 12px 0 0;
   padding: 16px 18px 18px;
   border-color: #e8eef5;
   box-shadow: none;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .expert-review--inline .expert-review__header {
@@ -1770,8 +2215,17 @@ input:focus {
   font-weight: 700;
 }
 
-.expert-review--inline .expert-review__header button {
+.expert-review--inline .expert-review__actions {
+  display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.expert-review--inline .expert-review__actions button {
+  flex-shrink: 0;
+  min-width: 108px;
   height: 32px;
   padding: 0 12px;
   border: 1px solid #d7e0ec;
@@ -1787,9 +2241,32 @@ input:focus {
     background-color 0.15s ease;
 }
 
-.expert-review--inline .expert-review__header button:hover {
+.expert-review--inline .expert-review__actions button:hover {
   border-color: #b8c5d6;
   background: #f8fafc;
+}
+
+.expert-review--inline .expert-review__actions .expert-review__action-btn--draft {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.expert-review--inline .expert-review__actions .expert-review__action-btn--draft:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+
+.expert-review--inline .expert-review__actions .expert-review__action-btn--primary {
+  min-width: 126px;
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.expert-review--inline .expert-review__actions .expert-review__action-btn--primary:hover {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
 }
 
 .expert-review--inline .expert-editor {
@@ -3085,6 +3562,45 @@ input:focus {
   .primary-action,
   .expert-review__header button {
     width: 100%;
+  }
+
+  .expert-review__actions {
+    width: 100%;
+  }
+
+  .review-detail-tabs {
+    width: 100%;
+  }
+
+  .review-detail-tabs button {
+    flex: 1 1 120px;
+  }
+
+  .ai-review-brief,
+  .ai-review-summary-card {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-review-brief__meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ai-review-brief__meta button {
+    width: 100%;
+  }
+
+  .ai-radar {
+    min-height: 230px;
+  }
+
+  .ai-review-score strong {
+    font-size: 44px;
+  }
+
+  .ai-dimension-row__header {
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .review-hero {

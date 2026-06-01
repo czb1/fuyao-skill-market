@@ -3530,7 +3530,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           审核中心
         </button>
         <button
-          v-if="false && showAdminModules"
+          v-if="showAdminModules"
           type="button"
           class="sub-tab"
           :class="{ on: innerTab === 'review' }"
@@ -3560,7 +3560,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
         <p class="hero-desc">在 Skill 市场发现、共享和复用高质量工程资产，全面提升组织效能。</p>
       </div>
     </section>
-    <section v-if="innerTab === 'review'" class="hero">
+    <section v-if="innerTab === 'review'" class="tabs-panel overview-panel">
       <div class="hero-inner">
         <h1 class="hero-title">优秀 Skill 评审</h1>
         <p class="hero-desc">
