@@ -37,7 +37,8 @@ const reviewDimensionDetails = reactive<Record<string, ReviewDimensionDetail>>({
 const medalOptions = ref<string[]>([]);
 const selectedPersonalMedals = ref<string[]>([]);
 const isMedalSelectOpen = ref(false);
-const isHistoryDrawerOpen = ref(false);
+const isHistoryModalOpen = ref(false);
+const isVersionHistoryModalOpen = ref(false);
 const greenChannelOptions = ref<string[]>([]);
 const selectedGreenChannel = ref(greenChannelOptions.value[0] ?? '');
 const isGreenChannelSelectOpen = ref(false);
@@ -48,6 +49,10 @@ const scoreInputRef = ref<HTMLInputElement | null>(null);
 const reviewHistoryRecords = ref<ReviewHistoryRecord[]>([]);
 const reviewDetailTabs = ['AI评审', '专家评审'] as const;
 type ReviewDetailTab = (typeof reviewDetailTabs)[number];
+type ReviewVersionHistoryGroup = {
+  version: string;
+  records: ReviewHistoryRecord[];
+};
 const activeReviewDetailTab = ref<ReviewDetailTab>('AI评审');
 
 const maxAiReviewScore = 100;
@@ -199,6 +204,67 @@ function formatOverallScore(score: number): string {
   }
 
   return rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function historyRecordVersion(record: ReviewHistoryRecord, index: number): string {
+  return record.reviewVersion ?? `v${Math.max(1, reviewHistoryRecords.value.length - index)}.0`;
+}
+
+const reviewVersionHistoryGroups = computed<ReviewVersionHistoryGroup[]>(() => {
+  const groups: ReviewVersionHistoryGroup[] = [];
+  const groupMap = new Map<string, ReviewVersionHistoryGroup>();
+
+  reviewHistoryRecords.value.forEach((record, index) => {
+    const version = historyRecordVersion(record, index);
+    let group = groupMap.get(version);
+
+    if (!group) {
+      group = { version, records: [] };
+      groupMap.set(version, group);
+      groups.push(group);
+    }
+
+    group.records.push(record);
+  });
+
+  return groups;
+});
+
+function historyRecordType(record: ReviewHistoryRecord): string {
+  if (record.reviewType) {
+    return record.reviewType;
+  }
+
+  return record.reviewer.toLowerCase().includes('ai') ? 'AI评审' : '专家评审';
+}
+
+function historyRecordScores(record: ReviewHistoryRecord): string {
+  return record.scores.map((score) => `${score.dimension} ${score.score}分`).join(' / ');
+}
+
+function historyRecordMedals(record: ReviewHistoryRecord): string {
+  return record.medals.length ? record.medals.join('、') : '未获得';
+}
+
+function historyRecordTotalScore(record: ReviewHistoryRecord): string {
+  if (record.totalScore != null) {
+    return formatOverallScore(record.totalScore);
+  }
+
+  const totalScore = record.scores.find(
+    (score) => score.dimension === overallReviewDimension.value || score.dimension.includes('总体'),
+  )?.score;
+  if (totalScore != null) {
+    return formatOverallScore(totalScore);
+  }
+
+  if (!record.scores.length) {
+    return '—';
+  }
+
+  const average =
+    record.scores.reduce((scoreTotal, score) => scoreTotal + score.score, 0) / record.scores.length;
+  return formatOverallScore(average);
 }
 
 function sanitizeScoreInput(raw: string): string {
@@ -476,104 +542,111 @@ onMounted(async () => {
             <h2>评审任务</h2>
             <p>按状态、月份和评分维度筛选专家待办。</p>
           </div>
-          <div class="toolbar-controls">
-            <label class="toolbar-filter">
-              <span class="toolbar-filter__label">评审状态</span>
-              <select aria-label="评审状态">
-                <option>待评审</option>
-                <option>已评审</option>
-                <option>全部</option>
-              </select>
-            </label>
-            <label class="toolbar-filter">
-              <span class="toolbar-filter__label">月度</span>
-              <select aria-label="月度">
-                <option>2026年05月</option>
-                <option>2026年06月</option>
-                <option>全部</option>
-              </select>
-            </label>
-            <label class="toolbar-filter">
-              <span class="toolbar-filter__label">业务维度</span>
-              <select aria-label="业务维度">
-                <option>公共</option>
-                <option>设计</option>
-                <option>开发</option>
-                <option>测试</option>
-                <option>运维</option>
-                <option>维护</option>
-                <option>研究</option>
-                <option>项目管理</option>
-                <option>全部</option>
-              </select>
-            </label>
-            <label class="toolbar-filter">
-              <span class="toolbar-filter__label">部门</span>
-              <select aria-label="部门">
-                <option>xx部门</option>
-                <option>yy部门</option>
-                <option>zz部门</option>
-              </select>
-            </label>
-            <label class="toolbar-filter">
-              <span class="toolbar-filter__label">排序</span>
-              <select aria-label="排序">
-                <option>按季度得分情况排序</option>
-                <option>按本月得分情况排序</option>
-                <option>按本周得分情况排序</option>
-                <option>按今天得分情况排序</option>
-              </select>
-            </label>
-          </div>
         </div>
 
         <div class="board-layout">
-          <aside class="task-list" aria-label="任务列表">
-            <article
-              v-for="task in taskCards"
-              :key="task.id"
-              class="task-card"
-              :class="{ 'is-active': selectedTaskId === task.id }"
-              role="button"
-              tabindex="0"
-              :aria-pressed="selectedTaskId === task.id"
-              @click="selectTask(task.id)"
-              @keydown.enter.prevent="selectTask(task.id)"
-              @keydown.space.prevent="selectTask(task.id)"
-            >
-              <div class="task-card__title">{{ task.name }}</div>
-              <div class="task-card__meta">{{ task.owner }} {{ task.id }} · {{ task.team }}</div>
-              <div class="task-card__tags">
-                <span v-for="tag in task.tags" :key="tag">{{ tag }}</span>
+          <aside class="task-column" aria-label="Skill 筛选与任务列表">
+            <div class="task-filter-panel" aria-label="任务筛选">
+              <div class="toolbar-controls task-filter-controls">
+                <label class="toolbar-filter">
+                  <span class="toolbar-filter__label">评审状态</span>
+                  <select aria-label="评审状态">
+                    <option>待评审</option>
+                    <option>已评审</option>
+                    <option>全部</option>
+                  </select>
+                </label>
+                <label class="toolbar-filter">
+                  <span class="toolbar-filter__label">月度</span>
+                  <select aria-label="月度">
+                    <option>2026年05月</option>
+                    <option>2026年06月</option>
+                    <option>全部</option>
+                  </select>
+                </label>
+                <label class="toolbar-filter">
+                  <span class="toolbar-filter__label">业务维度</span>
+                  <select aria-label="业务维度">
+                    <option>公共</option>
+                    <option>设计</option>
+                    <option>开发</option>
+                    <option>测试</option>
+                    <option>运维</option>
+                    <option>维护</option>
+                    <option>研究</option>
+                    <option>项目管理</option>
+                    <option>全部</option>
+                  </select>
+                </label>
+                <label class="toolbar-filter">
+                  <span class="toolbar-filter__label">部门</span>
+                  <select aria-label="部门">
+                    <option>xx部门</option>
+                    <option>yy部门</option>
+                    <option>zz部门</option>
+                  </select>
+                </label>
+                <label class="toolbar-filter">
+                  <span class="toolbar-filter__label">排序</span>
+                  <select aria-label="排序">
+                    <option>按季度得分情况排序</option>
+                    <option>按本月得分情况排序</option>
+                    <option>按本周得分情况排序</option>
+                    <option>按今天得分情况排序</option>
+                  </select>
+                </label>
               </div>
-            </article>
+            </div>
+
+            <div class="task-list" aria-label="任务列表">
+              <article
+                v-for="task in taskCards"
+                :key="task.id"
+                class="task-card"
+                :class="{ 'is-active': selectedTaskId === task.id }"
+                role="button"
+                tabindex="0"
+                :aria-pressed="selectedTaskId === task.id"
+                @click="selectTask(task.id)"
+                @keydown.enter.prevent="selectTask(task.id)"
+                @keydown.space.prevent="selectTask(task.id)"
+              >
+                <div class="task-card__title">{{ task.name }}</div>
+                <div class="task-card__meta">{{ task.owner }} {{ task.id }} · {{ task.team }}</div>
+                <div class="task-card__tags">
+                  <span v-for="tag in task.tags" :key="tag">{{ tag }}</span>
+                </div>
+              </article>
+            </div>
           </aside>
 
           <section class="skill-detail" aria-label="Skill 详情">
-            <div class="metric-row">
-              <span
-                v-for="metric in activeMetrics"
-                :key="metric.label"
-                :class="['metric-chip', `is-${metric.tone}`]"
-              >
-                {{ metric.label }} {{ metric.value }}
-              </span>
-            </div>
+            <div class="review-detail-head">
+              <div class="review-detail-tabs" role="tablist" aria-label="评审详情类型">
+                <button
+                  v-for="tab in reviewDetailTabs"
+                  :id="`review-detail-tab-${tab}`"
+                  :key="tab"
+                  :class="{ 'is-active': activeReviewDetailTab === tab }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeReviewDetailTab === tab"
+                  :aria-controls="`review-detail-panel-${tab}`"
+                  @click="activeReviewDetailTab = tab"
+                >
+                  {{ tab }}
+                </button>
+              </div>
 
-            <div class="review-detail-tabs" role="tablist" aria-label="评审详情类型">
-              <button
-                v-for="tab in reviewDetailTabs"
-                :id="`review-detail-tab-${tab}`"
-                :key="tab"
-                :class="{ 'is-active': activeReviewDetailTab === tab }"
-                type="button"
-                role="tab"
-                :aria-selected="activeReviewDetailTab === tab"
-                :aria-controls="`review-detail-panel-${tab}`"
-                @click="activeReviewDetailTab = tab"
-              >
-                {{ tab }}
-              </button>
+              <div class="metric-row" aria-label="Skill 数据概览">
+                <span
+                  v-for="metric in activeMetrics"
+                  :key="metric.label"
+                  :class="['metric-chip', `is-${metric.tone}`]"
+                >
+                  {{ metric.label }} {{ metric.value }}
+                </span>
+              </div>
             </div>
 
             <section
@@ -669,7 +742,14 @@ onMounted(async () => {
                   <h2 id="expert-title">专家评审打分详情</h2>
                 </div>
                 <div class="expert-review__actions">
-                  <button type="button" @click="isHistoryDrawerOpen = true">历史评审记录</button>
+                  <button
+                    type="button"
+                    class="expert-review__action-btn--version-history"
+                    @click="isVersionHistoryModalOpen = true"
+                  >
+                    历史版本评审记录
+                  </button>
+                  <button type="button" @click="isHistoryModalOpen = true">历史评审记录</button>
                   <button type="button" class="expert-review__action-btn--draft">保存草稿</button>
                   <button type="button" class="expert-review__action-btn--primary">
                     提交评审意见
@@ -992,52 +1072,147 @@ onMounted(async () => {
     </Teleport>
 
     <div
-      v-if="isHistoryDrawerOpen"
-      class="history-drawer-backdrop"
-      @click="isHistoryDrawerOpen = false"
-    ></div>
-    <aside v-if="isHistoryDrawerOpen" class="history-drawer" aria-label="历史评审记录">
-      <header class="history-drawer__header">
-        <div>
-          <p>历史评审记录</p>
-          <h2>{{ activeTask?.name ?? 'Skill' }}</h2>
-        </div>
-        <button
-          class="history-drawer__close"
-          type="button"
-          aria-label="关闭历史评审记录"
-          @click="isHistoryDrawerOpen = false"
-        >
-          关闭
-        </button>
-      </header>
+      v-if="isHistoryModalOpen"
+      class="history-modal-overlay"
+      role="presentation"
+      @click.self="isHistoryModalOpen = false"
+    >
+      <section
+        class="history-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-modal-title"
+      >
+        <header class="history-modal__header">
+          <div>
+            <p>历史评审记录</p>
+            <h2 id="history-modal-title">{{ activeTask?.name ?? 'Skill' }}</h2>
+          </div>
+          <button
+            class="history-modal__close"
+            type="button"
+            aria-label="关闭历史评审记录"
+            @click="isHistoryModalOpen = false"
+          >
+            关闭
+          </button>
+        </header>
 
-      <div class="history-drawer__body">
-        <article v-for="record in reviewHistoryRecords" :key="record.id" class="history-record">
-          <div class="history-record__topline">
-            <strong>{{ record.reviewer }}</strong>
-            <span>{{ record.reviewedAt }}</span>
+        <div class="history-modal__table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>评审版本号</th>
+                <th>评审时间</th>
+                <th>评审人</th>
+                <th>各维度评分</th>
+                <th>获得的勋章类型</th>
+                <th>总分</th>
+                <th>整体评审意见</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(record, index) in reviewHistoryRecords" :key="record.id">
+                <td>
+                  <strong class="history-version">{{ historyRecordVersion(record, index) }}</strong>
+                </td>
+                <td class="history-time">{{ record.reviewedAt }}</td>
+                <td>
+                  <div class="history-reviewer-cell">
+                    <strong>{{ record.reviewer }}</strong>
+                    <span>{{ historyRecordType(record) }}</span>
+                  </div>
+                </td>
+                <td class="history-dimension-scores">{{ historyRecordScores(record) }}</td>
+                <td>{{ historyRecordMedals(record) }}</td>
+                <td>
+                  <strong class="history-total-score">{{ historyRecordTotalScore(record) }}</strong>
+                </td>
+                <td class="history-summary-cell">{{ record.summary }}</td>
+              </tr>
+              <tr v-if="reviewHistoryRecords.length === 0">
+                <td colspan="7" class="history-empty-cell">暂无历史评审记录</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div
+      v-if="isVersionHistoryModalOpen"
+      class="history-modal-overlay"
+      role="presentation"
+      @click.self="isVersionHistoryModalOpen = false"
+    >
+      <section
+        class="history-modal version-history-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="version-history-modal-title"
+      >
+        <header class="history-modal__header">
+          <div>
+            <p>历史版本评审记录</p>
+            <h2 id="version-history-modal-title">{{ activeTask?.name ?? 'Skill' }}</h2>
           </div>
-          <p>{{ record.summary }}</p>
-          <div class="history-score-list">
-            <div v-for="score in record.scores" :key="score.dimension" class="history-score-item">
-              <div>
-                <span>{{ score.dimension }}</span>
-                <strong>{{ score.score }}分</strong>
-              </div>
-              <button class="history-suggestion" type="button" :title="score.suggestion">
-                优化建议
-                <span class="history-suggestion__tip">{{ score.suggestion }}</span>
-              </button>
+          <button
+            class="history-modal__close"
+            type="button"
+            aria-label="关闭历史版本评审记录"
+            @click="isVersionHistoryModalOpen = false"
+          >
+            关闭
+          </button>
+        </header>
+
+        <div class="history-modal__table-wrap version-history-modal__body">
+          <div v-if="reviewVersionHistoryGroups.length === 0" class="version-history-empty">
+            暂无历史版本评审记录
+          </div>
+
+          <section
+            v-for="group in reviewVersionHistoryGroups"
+            :key="group.version"
+            class="version-history-group"
+          >
+            <div class="version-history-group__header">
+              <h3>{{ group.version }}</h3>
+              <span>{{ group.records.length }} 条记录</span>
             </div>
-          </div>
-          <div class="history-record__medals">
-            <span>个人勋章</span>
-            <strong>{{ record.medals.length ? record.medals.join('、') : '未授予' }}</strong>
-          </div>
-        </article>
-      </div>
-    </aside>
+            <table class="version-history-table">
+              <thead>
+                <tr>
+                  <th>评审人</th>
+                  <th>评审时间</th>
+                  <th>各维度评分</th>
+                  <th>获得的勋章类型</th>
+                  <th>总分</th>
+                  <th>整体评审意见</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="record in group.records" :key="record.id">
+                  <td>
+                    <div class="history-reviewer-cell">
+                      <strong>{{ record.reviewer }}</strong>
+                      <span>{{ historyRecordType(record) }}</span>
+                    </div>
+                  </td>
+                  <td class="history-time">{{ record.reviewedAt }}</td>
+                  <td class="history-dimension-scores">{{ historyRecordScores(record) }}</td>
+                  <td>{{ historyRecordMedals(record) }}</td>
+                  <td>
+                    <strong class="history-total-score">{{ historyRecordTotalScore(record) }}</strong>
+                  </td>
+                  <td class="history-summary-cell">{{ record.summary }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -1448,21 +1623,51 @@ th {
 .board-layout {
   --review-workspace-h: auto;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) minmax(200px, 240px);
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 18px;
   flex: 1 1 auto;
   align-items: stretch;
   min-height: 0;
 }
 
+.task-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding-right: 8px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.task-filter-panel {
+  flex: 0 0 auto;
+  padding: 12px;
+  border: 1px solid #dbe5f2;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.task-filter-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.task-filter-controls .toolbar-filter,
+.task-filter-controls select {
+  width: 100%;
+  min-width: 0;
+}
+
 .task-list {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
   height: auto;
-  padding-right: 8px;
-  border-right: 1px solid #e2e8f0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1534,17 +1739,33 @@ th {
 .skill-detail {
   display: flex;
   flex-direction: column;
-  width: calc(100vw - 390px);
+  width: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.review-detail-head {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
 }
 
 .metric-row {
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: min(315px, 100%);
+  padding: 4px;
+  border: 1px solid #dbe5f2;
+  border-radius: 8px;
+  background: #f8fafc;
+  margin-right: 8px;
 }
 
 .metric-chip {
@@ -1552,9 +1773,10 @@ th {
   align-items: center;
   min-height: 30px;
   padding: 0 12px;
-  border: 1px solid;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .metric-chip.is-blue {
@@ -1587,7 +1809,6 @@ th {
   flex-wrap: wrap;
   gap: 4px;
   width: fit-content;
-  margin-top: 12px;
   padding: 4px;
   border: 1px solid #dbe5f2;
   border-radius: 8px;
@@ -2252,6 +2473,10 @@ input:focus {
 .expert-review--inline .expert-review__actions button:hover {
   border-color: #b8c5d6;
   background: #f8fafc;
+}
+
+.expert-review--inline .expert-review__actions .expert-review__action-btn--version-history {
+  min-width: 148px;
 }
 
 .expert-review--inline .expert-review__actions .expert-review__action-btn--draft {
@@ -3306,52 +3531,55 @@ input:focus {
   cursor: not-allowed;
 }
 
-.history-drawer-backdrop {
+.history-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 70;
-  background: rgba(15, 23, 42, 0.24);
-}
-
-.history-drawer {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
   z-index: 80;
   display: flex;
-  flex-direction: column;
-  width: min(430px, calc(100vw - 28px));
-  background: #ffffff;
-  border-right: 1px solid #d9e3f1;
-  box-shadow: 18px 0 42px rgba(15, 23, 42, 0.18);
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(15, 23, 42, 0.28);
 }
 
-.history-drawer__header {
+.history-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1180px, calc(100vw - 56px));
+  max-height: min(720px, calc(100vh - 56px));
+  overflow: hidden;
+  border: 1px solid #d9e3f1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.2);
+}
+
+.history-modal__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
-  padding: 20px;
+  gap: 16px;
+  padding: 20px 22px;
   border-bottom: 1px solid #e5edf7;
 }
 
-.history-drawer__header p {
-  margin: 0 0 8px;
+.history-modal__header p {
+  margin: 0 0 6px;
   color: #5d78a5;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.history-drawer__header h2 {
+.history-modal__header h2 {
   margin: 0;
   color: #101828;
   font-size: 20px;
   line-height: 1.35;
 }
 
-.history-drawer__close {
+.history-modal__close {
+  flex: 0 0 auto;
   min-width: 64px;
   height: 34px;
   border: 1px solid #cad6e5;
@@ -3363,119 +3591,203 @@ input:focus {
   cursor: pointer;
 }
 
-.history-drawer__body {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  overflow-y: auto;
+.history-modal__table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px 18px 20px;
+  overflow: auto;
 }
 
-.history-record {
-  padding: 14px;
-  border: 1px solid #dfe7f2;
-  border-radius: 8px;
-  background: #fbfdff;
+.history-table {
+  min-width: 980px;
+  margin: 0;
+  table-layout: fixed;
 }
 
-.history-record__topline,
-.history-score-item,
-.history-record__medals {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.history-table th,
+.history-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf1f7;
+  vertical-align: top;
+  white-space: normal;
 }
 
-.history-record__topline strong {
-  color: #17233d;
-  font-size: 15px;
-}
-
-.history-record__topline span {
-  color: #718096;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.history-record p {
-  margin: 10px 0 12px;
-  color: #52647d;
-  line-height: 1.7;
-}
-
-.history-score-list {
-  display: grid;
-  gap: 8px;
-}
-
-.history-score-item {
-  padding: 10px;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.history-score-item span,
-.history-record__medals span {
+.history-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
   color: #64748b;
   font-size: 12px;
-  font-weight: 800;
 }
 
-.history-score-item strong,
-.history-record__medals strong {
-  display: block;
-  margin-top: 4px;
+.history-table th:nth-child(1) {
+  width: 112px;
+}
+
+.history-table th:nth-child(2) {
+  width: 150px;
+}
+
+.history-table th:nth-child(3) {
+  width: 140px;
+}
+
+.history-table th:nth-child(4) {
+  width: 300px;
+}
+
+.history-table th:nth-child(5) {
+  width: 140px;
+}
+
+.history-table th:nth-child(6) {
+  width: 86px;
+}
+
+.history-table th:nth-child(7) {
+  width: 260px;
+}
+
+.history-version,
+.history-total-score {
   color: #1d4ed8;
   font-size: 14px;
 }
 
-.history-suggestion {
-  position: relative;
-  flex: 0 0 auto;
-  height: 30px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #1e40af;
-  font: inherit;
+.history-time {
+  color: #52647d;
+  font-size: 13px;
+}
+
+.history-reviewer-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.history-reviewer-cell strong {
+  color: #17233d;
+}
+
+.history-reviewer-cell span {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
   font-size: 12px;
   font-weight: 800;
-  padding: 0 10px;
-  cursor: pointer;
 }
 
-.history-suggestion__tip {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 90;
-  width: 240px;
-  padding: 10px 12px;
+.history-dimension-scores,
+.history-summary-cell {
+  color: #475569;
+  line-height: 1.7;
+}
+
+.history-empty-cell {
+  padding: 32px 16px;
+  color: #64748b;
+  text-align: center;
+}
+
+.version-history-modal {
+  width: min(1180px, calc(100vw - 56px));
+}
+
+.version-history-modal__body {
+  display: grid;
+  gap: 16px;
+}
+
+.version-history-group {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #0f172a;
-  color: #ffffff;
+  background: #ffffff;
+}
+
+.version-history-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e8eef5;
+  background: #f8fafc;
+}
+
+.version-history-group__header h3 {
+  margin: 0;
+  color: #17233d;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.version-history-group__header span {
+  flex: 0 0 auto;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.6;
-  opacity: 0;
-  pointer-events: none;
+}
+
+.version-history-table {
+  width: 100%;
+  min-width: 980px;
+  margin: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.version-history-table th,
+.version-history-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #edf1f7;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.version-history-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.version-history-table th {
+  background: #ffffff;
+  color: #64748b;
+  font-size: 12px;
   text-align: left;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
 }
 
-.history-suggestion:hover .history-suggestion__tip,
-.history-suggestion:focus .history-suggestion__tip {
-  opacity: 1;
-  transform: translateY(0);
+.version-history-table th:nth-child(1) {
+  width: 140px;
 }
 
-.history-record__medals {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #edf1f7;
+.version-history-table th:nth-child(2) {
+  width: 150px;
+}
+
+.version-history-table th:nth-child(3) {
+  width: 300px;
+}
+
+.version-history-table th:nth-child(4) {
+  width: 140px;
+}
+
+.version-history-table th:nth-child(5) {
+  width: 86px;
+}
+
+.version-history-table th:nth-child(6) {
+  width: 260px;
+}
+
+.version-history-empty {
+  padding: 32px 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  text-align: center;
 }
 
 @media (max-width: 1440px) {
@@ -3484,7 +3796,7 @@ input:focus {
   }
 
   .board-layout {
-    grid-template-columns: 220px minmax(360px, 1fr);
+    grid-template-columns: 280px minmax(360px, 1fr);
   }
 
   .support-column {
@@ -3551,10 +3863,13 @@ input:focus {
     --review-workspace-h: 360px;
   }
 
-  .task-list {
-    max-height: var(--review-workspace-h);
+  .task-column {
     padding-right: 0;
     border-right: 0;
+  }
+
+  .task-list {
+    max-height: var(--review-workspace-h);
   }
 
   .board-toolbar,
@@ -3574,6 +3889,17 @@ input:focus {
 
   .expert-review__actions {
     width: 100%;
+  }
+
+  .review-detail-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .metric-row {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
   }
 
   .review-detail-tabs {
@@ -3647,10 +3973,23 @@ input:focus {
     grid-template-columns: 1fr;
   }
 
-  .history-score-item,
-  .history-record__medals {
-    align-items: flex-start;
+  .history-modal-overlay {
+    padding: 14px;
+  }
+
+  .history-modal {
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 28px);
+  }
+
+  .history-modal__header {
+    align-items: stretch;
     flex-direction: column;
   }
+
+  .history-modal__close {
+    width: 100%;
+  }
+
 }
 </style>

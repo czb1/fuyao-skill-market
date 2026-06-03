@@ -40,10 +40,13 @@ export type ReviewDimensionDetail = {
 
 export type ReviewHistoryRecord = {
   id: string;
+  reviewVersion?: string;
+  reviewType?: 'AI评审' | '专家评审';
   reviewer: string;
   reviewedAt: string;
   summary: string;
   medals: string[];
+  totalScore?: number;
   scores: {
     dimension: string;
     score: number;
@@ -221,11 +224,31 @@ export const mockOverallReviewDimension = '总体评价';
 
 export const mockReviewHistoryRecords: ReviewHistoryRecord[] = [
   {
+    id: 'ai-review-20260519',
+    reviewVersion: 'v1.3',
+    reviewType: 'AI评审',
+    reviewer: 'AI 评审引擎',
+    reviewedAt: '2026-05-19 10:20',
+    summary: 'TRACE 自动评测显示文档结构、任务边界和异常处理较完整，整体质量达到专家复核门槛。',
+    medals: [],
+    totalScore: 90.8,
+    scores: [
+      { dimension: '可信任度', score: 90, suggestion: '补齐中文说明和权限边界。' },
+      { dimension: '可靠性', score: 92, suggestion: '继续保持失败恢复路径说明。' },
+      { dimension: '适用性', score: 90, suggestion: '增加不适用场景示例。' },
+      { dimension: '规范性', score: 88, suggestion: '精简主文档密集段落。' },
+      { dimension: '有效性', score: 94, suggestion: '沉淀更多可复用执行样例。' },
+    ],
+  },
+  {
     id: 'review-20260519',
+    reviewVersion: 'v1.3',
+    reviewType: '专家评审',
     reviewer: '专家 A',
     reviewedAt: '2026-05-19 14:30',
     summary: '整体可复用性较好，边界说明和失败兜底还可以继续补齐。',
     medals: ['test1'],
+    totalScore: 85,
     scores: [
       {
         dimension: '边界覆盖维度',
@@ -255,11 +278,31 @@ export const mockReviewHistoryRecords: ReviewHistoryRecord[] = [
     ],
   },
   {
+    id: 'ai-review-20260512',
+    reviewVersion: 'v1.2',
+    reviewType: 'AI评审',
+    reviewer: 'AI 评审引擎',
+    reviewedAt: '2026-05-12 09:05',
+    summary: 'AI 评测认为指令具体性较好，但边界覆盖和场景适配仍存在补充空间。',
+    medals: [],
+    totalScore: 88.2,
+    scores: [
+      { dimension: '可信任度', score: 87, suggestion: '补充敏感数据处理边界。' },
+      { dimension: '可靠性', score: 89, suggestion: '增加失败重试说明。' },
+      { dimension: '适用性', score: 88, suggestion: '限定目标用户和适用流程。' },
+      { dimension: '规范性', score: 86, suggestion: '统一目录和示例命名。' },
+      { dimension: '有效性', score: 93, suggestion: '保留当前任务拆解方式。' },
+    ],
+  },
+  {
     id: 'review-20260512',
+    reviewVersion: 'v1.2',
+    reviewType: '专家评审',
     reviewer: '专家 B',
     reviewedAt: '2026-05-12 10:15',
     summary: '指令清晰度提升明显，场景边界仍需要更具体的反例。',
     medals: [],
+    totalScore: 83,
     scores: [
       {
         dimension: '边界覆盖维度',
