@@ -127,19 +127,12 @@ const parseNotice = computed(() => {
   return '等待上传：解析字段会自动回显；业务维度请手动选择。';
 });
 
-const businessDimensionOptions = computed(() =>
-  [...businessDimensions.value]
-    .filter((item) => Number(item.enabled) === 1)
-    .sort(
-      (a, b) => a.sortNo - b.sortNo || a.dimensionName.localeCompare(b.dimensionName, 'zh-Hans-CN'),
-    ),
-);
+const businessDimensionOptions = computed(() => [...businessDimensions.value]);
 
 const selectedBusinessDimensionItem = computed(
   () =>
-    businessDimensionOptions.value.find(
-      (item) => item.dimensionName === selectedBusinessDimension.value,
-    ) ?? null,
+    businessDimensionOptions.value.find((item) => item.name === selectedBusinessDimension.value) ??
+    null,
 );
 
 const selectedBusinessCategoryOptions = computed(() =>
@@ -283,48 +276,10 @@ function serviceMessage(value: unknown, fallback: string): string {
   return typeof message === 'string' && message.trim() ? message : fallback;
 }
 
-function normalizeBusinessDimensions(raw: unknown): BusinessDimensionDto[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  return raw
-    .map((item, index): BusinessDimensionDto | null => {
-      const record = readEnvelopeRecord(item);
-      const dimensionName = String(record.dimensionName ?? record.name ?? '').trim();
-      if (!dimensionName) {
-        return null;
-      }
-      const id = Number(record.id);
-      const sortNo = Number(record.sortNo);
-      const enabled =
-        record.enabled === 0 || record.enabled === '0' || record.enabled === false ? 0 : 1;
-      return {
-        id: Number.isFinite(id) ? id : index + 1,
-        dimensionCode: String(record.dimensionCode ?? record.nameEn ?? '')
-          .trim()
-          .toUpperCase(),
-        dimensionName,
-        name: dimensionName,
-        nameEn: String(record.nameEn ?? record.dimensionCode ?? '').trim(),
-        level: Number.isFinite(Number(record.level)) ? Number(record.level) : 0,
-        sortNo: Number.isFinite(sortNo) ? sortNo : index + 1,
-        enabled,
-        createdAt: String(record.createdAt ?? ''),
-        updatedAt: String(record.updatedAt ?? ''),
-        children: normalizeBusinessDimensions(record.children),
-      };
-    })
-    .filter((item): item is BusinessDimensionDto => Boolean(item));
-}
-
 function businessDimensionChildren(
   dimension: BusinessDimensionDto | null | undefined,
 ): BusinessDimensionDto[] {
-  return [...(dimension?.children ?? [])]
-    .filter((item) => Number(item.enabled) === 1)
-    .sort(
-      (a, b) => a.sortNo - b.sortNo || a.dimensionName.localeCompare(b.dimensionName, 'zh-Hans-CN'),
-    );
+  return [...(dimension?.children ?? [])];
 }
 
 function syncSelectedBusinessDimension(): void {
@@ -334,13 +289,11 @@ function syncSelectedBusinessDimension(): void {
     return;
   }
   const current = selectedBusinessDimension.value;
-  if (options.some((item) => item.dimensionName === current)) {
+  if (options.some((item) => item.name === current)) {
     return;
   }
   selectedBusinessDimension.value =
-    options.find((item) => item.dimensionName === '公共')?.dimensionName ??
-    options[0]?.dimensionName ??
-    '公共';
+    options.find((item) => item.name === '公共')?.name ?? options[0]?.name ?? '公共';
 }
 
 watch(selectedBusinessDimension, () => {
@@ -364,8 +317,8 @@ async function loadBusinessDimensions(): Promise<void> {
   businessDimensionLoading.value = true;
   try {
     const env = await skillBaseService.queryBusinessDimensions();
-    if (serviceSucceeded(env)) {
-      businessDimensions.value = normalizeBusinessDimensions(readEnvelopeRecord(env).data);
+    if (env?.meta?.success && env?.data) {
+      businessDimensions.value = env.data;
     }
   } finally {
     businessDimensionLoading.value = false;
@@ -502,7 +455,6 @@ const onSubmit = async (): Promise<void> => {
     formData.append('file', file.value);
     const uploadParams: Record<string, string> = {
       userId: userId.value,
-      businessDimension: selectedBusinessDimension.value,
       category: selectedBusinessCategoryParam.value,
     };
     const env = await skillBaseService.uploadSkillPackage(formData, uploadParams);
@@ -632,10 +584,10 @@ const onSubmit = async (): Promise<void> => {
                   >
                     <option
                       v-for="dimension in businessDimensionOptions"
-                      :key="dimension.id || dimension.dimensionCode"
-                      :value="dimension.dimensionName"
+                      :key="dimension.id"
+                      :value="dimension.name"
                     >
-                      {{ dimension.dimensionName }}
+                      {{ dimension.name }}
                     </option>
                     <option v-if="businessDimensionOptions.length === 0" value="公共">
                       {{ businessDimensionLoading ? '加载中...' : '公共' }}
@@ -654,10 +606,10 @@ const onSubmit = async (): Promise<void> => {
                     >
                       <option
                         v-for="category in selectedBusinessCategoryOptions"
-                        :key="category.id || category.dimensionCode"
+                        :key="category.id"
                         :value="String(category.id)"
                       >
-                        {{ category.dimensionName }}
+                        {{ category.name }}
                       </option>
                     </select>
                     <button

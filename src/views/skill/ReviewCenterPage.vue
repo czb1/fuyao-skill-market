@@ -462,6 +462,12 @@ onMounted(async () => {
 </script>
 
 <template>
+  <header class="admin-panel-head management-panel-head">
+    <div>
+      <h2 class="panel-title" style="font-size: 42px">优秀 Skill 评审</h2>
+      <p class="all-desc">建议专家从创新设计、场景价值、工程质量等方面对 Skill 进行评审</p>
+    </div>
+  </header>
   <div class="review-center-page">
     <div class="review-shell">
       <section class="review-board" aria-label="评审任务">
@@ -1035,7 +1041,8 @@ onMounted(async () => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/style/UserMarketShell.scss';
 .review-center-page {
   min-height: 0;
   overflow: hidden;
@@ -1376,7 +1383,7 @@ th {
 .review-board {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 190px);
+  height: calc(100dvh - 320px);
   min-height: 0;
   padding: 18px;
   overflow: hidden;
@@ -1400,6 +1407,7 @@ th {
   justify-content: flex-end;
   align-items: flex-end;
   gap: 12px;
+  position: relative;
 }
 
 .toolbar-filter {
@@ -1526,7 +1534,7 @@ th {
 .skill-detail {
   display: flex;
   flex-direction: column;
-  width: calc(100vw - 220px);
+  width: calc(100vw - 390px);
   min-width: 0;
   min-height: 0;
   overflow: hidden;

@@ -722,31 +722,21 @@ function onOverviewDeptCascadeChange(levelIndex: number, raw: string): void {
   ];
 }
 
-const businessDimensionOptions = computed(() =>
-  [...businessDimensions.value]
-    .filter((item) => Number(item.enabled) === 1)
-    .sort(
-      (a, b) => a.sortNo - b.sortNo || a.dimensionName.localeCompare(b.dimensionName, 'zh-Hans-CN'),
-    ),
-);
+const businessDimensionOptions = computed(() => [...businessDimensions.value]);
 
 const categoryOptions = computed(() =>
   businessDimensionOptions.value.flatMap((item) => [
-    item.dimensionName,
-    ...businessDimensionChildren(item).map((child) => child.dimensionName),
+    item.name,
+    ...businessDimensionChildren(item).map((child) => child.name),
   ]),
 );
 
 function businessDimensionKey(dimension: BusinessDimensionDto): string {
-  return String(dimension.id || dimension.dimensionCode || dimension.dimensionName);
+  return String(dimension.id || dimension.name);
 }
 
 function businessDimensionChildren(dimension: BusinessDimensionDto): BusinessDimensionDto[] {
-  return [...(dimension.children ?? [])]
-    .filter((item) => Number(item.enabled) === 1)
-    .sort(
-      (a, b) => a.sortNo - b.sortNo || a.dimensionName.localeCompare(b.dimensionName, 'zh-Hans-CN'),
-    );
+  return [...(dimension.children ?? [])];
 }
 
 function businessDimensionHasChildren(dimension: BusinessDimensionDto): boolean {
@@ -754,10 +744,10 @@ function businessDimensionHasChildren(dimension: BusinessDimensionDto): boolean 
 }
 
 function businessDimensionSelectedLabel(dimension: BusinessDimensionDto): string {
-  if (categoryFilter.value !== dimension.dimensionName || categorySubFilter.value === 'all') {
-    return dimension.dimensionName;
+  if (categoryFilter.value !== dimension.name || categorySubFilter.value === 'all') {
+    return dimension.name;
   }
-  return `${dimension.dimensionName} / ${categorySubFilter.value}`;
+  return `${dimension.name} / ${categorySubFilter.value}`;
 }
 
 function updateBusinessDimensionPanelStyle(target: EventTarget | null): void {
@@ -824,11 +814,11 @@ async function onBusinessDimensionPrimaryClick(
   dimension: BusinessDimensionDto,
   ev?: MouseEvent,
 ): Promise<void> {
-  if (categoryFilter.value === dimension.dimensionName && categorySubFilter.value !== 'all') {
+  if (categoryFilter.value === dimension.name && categorySubFilter.value !== 'all') {
     showBusinessDimensionPanel(dimension, ev);
     return;
   }
-  await setCategoryFilter(dimension.dimensionName, 'all', String(dimension.id));
+  await setCategoryFilter(dimension.name, 'all', String(dimension.id));
 }
 
 function scheduleOverviewDimensionOverflowCheck(): void {
@@ -1016,49 +1006,15 @@ function formatHotStatNumber(value: number): string {
   return Math.round(value).toLocaleString('zh-CN');
 }
 
-function normalizeBusinessDimensions(raw: unknown): BusinessDimensionDto[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  return raw
-    .map((item, index): BusinessDimensionDto | null => {
-      const record = readServiceRecord(item);
-      const dimensionName = String(record.dimensionName ?? record.name ?? '').trim();
-      if (!dimensionName) {
-        return null;
-      }
-      const id = Number(record.id);
-      const sortNo = Number(record.sortNo);
-      const enabled =
-        record.enabled === 0 || record.enabled === '0' || record.enabled === false ? 0 : 1;
-      return {
-        id: Number.isFinite(id) ? id : index + 1,
-        dimensionCode: String(record.dimensionCode ?? record.nameEn ?? '')
-          .trim()
-          .toUpperCase(),
-        dimensionName,
-        name: dimensionName,
-        nameEn: String(record.nameEn ?? record.dimensionCode ?? '').trim(),
-        level: Number.isFinite(Number(record.level)) ? Number(record.level) : 0,
-        sortNo: Number.isFinite(sortNo) ? sortNo : index + 1,
-        enabled,
-        createdAt: String(record.createdAt ?? ''),
-        updatedAt: String(record.updatedAt ?? ''),
-        children: normalizeBusinessDimensions(record.children),
-      };
-    })
-    .filter((item): item is BusinessDimensionDto => Boolean(item));
-}
-
 async function loadBusinessDimensions(): Promise<void> {
   businessDimensionLoading.value = true;
   try {
-    const r = await skillBaseService.queryBusinessDimensions();
-    if (serviceSucceeded(r)) {
-      businessDimensions.value = normalizeBusinessDimensions(readServiceRecord(r).data);
+    const res = await skillBaseService.queryBusinessDimensions();
+    if (res?.meta?.success && res?.data) {
+      businessDimensions.value = res.data;
       return;
     }
-    showToast(serviceMessage(r, '业务维度加载失败'));
+    showToast(serviceMessage(res.meta?.message, '业务维度加载失败'));
   } catch (e) {
     if (transportIsHttp) {
       showToast(e instanceof Error ? e.message : '业务维度加载失败');
@@ -1457,9 +1413,9 @@ async function selectBusinessDimensionChild(
   child: BusinessDimensionDto | 'all',
 ): Promise<void> {
   if (child === 'all') {
-    await setCategoryFilter(dimension.dimensionName, 'all', String(dimension.id));
+    await setCategoryFilter(dimension.name, 'all', String(dimension.id));
   } else {
-    await setCategoryFilter(dimension.dimensionName, child.dimensionName, String(child.id));
+    await setCategoryFilter(dimension.name, child.name, String(child.id));
   }
   closeBusinessDimensionPanelNow();
   closeOverviewDimensionMore();
@@ -3089,8 +3045,8 @@ async function selectOpsBusinessDimension(
 ): Promise<void> {
   selectedOpsBusinessDimension.value = {
     id: opsBusinessDimensionNodeId(dimension),
-    name: dimension.dimensionName,
-    parentName: parent?.dimensionName,
+    name: dimension.name,
+    parentName: parent?.name,
   };
   await loadOpsDashboardOverview();
 }
@@ -3253,7 +3209,7 @@ const opsKpiCards = computed<OpsKpiCard[]>(() => {
     {
       label: 'Skill 总数',
       value: kpi.totalSkills,
-      desc: `${systemName}内个人级和组织级 Skill 总量`,
+      desc: `个人级和组织级 Skill 总量`,
     },
     {
       label: '组织级 Skill',
@@ -3467,7 +3423,13 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
     <header class="market-topbar">
       <nav
         class="sub-tabs"
-        :class="{ 'ops-tabs': innerTab === 'ops' || innerTab === 'org' || innerTab === 'approval' }"
+        :class="{
+          'ops-tabs':
+            innerTab === 'ops' ||
+            innerTab === 'org' ||
+            innerTab === 'approval' ||
+            innerTab === 'review',
+        }"
         aria-label="市场分区"
       >
         <button
@@ -3521,7 +3483,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           组织管理
         </button>
         <button
-          v-if="showAdminModules"
+          v-if="false && showAdminModules"
           type="button"
           class="sub-tab"
           :class="{ on: innerTab === 'approval' }"
@@ -3536,7 +3498,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           :class="{ on: innerTab === 'review' }"
           @click="goTab('review')"
         >
-          评审
+          评审中心
         </button>
       </nav>
 
@@ -3558,17 +3520,6 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
       <div class="hero-inner">
         <h1 class="hero-title">探索原子能力，加速业务交付</h1>
         <p class="hero-desc">在 Skill 市场发现、共享和复用高质量工程资产，全面提升组织效能。</p>
-      </div>
-    </section>
-    <section v-if="innerTab === 'review'" class="tabs-panel overview-panel">
-      <div class="hero-inner">
-        <h1 class="hero-title">优秀 Skill 评审</h1>
-        <p class="hero-desc">
-          月度/季度评优工作台，自动评分仅做参考，最终按专家评分 70% + 使用数据 30% 计算。
-        </p>
-        <div v-if="false" class="hero-actions">
-          <button type="button" class="btn primary">发起专家评审</button>
-        </div>
       </div>
     </section>
 
@@ -3786,7 +3737,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               <button
                 type="button"
                 class="all-category-chip"
-                :class="{ active: categoryFilter === dimension.dimensionName }"
+                :class="{ active: categoryFilter === dimension.name }"
                 @click="onBusinessDimensionPrimaryClick(dimension, $event)"
               >
                 {{ businessDimensionSelectedLabel(dimension) }}
@@ -3803,14 +3754,13 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                   @mouseenter="keepBusinessDimensionPanelOpen"
                   @mouseleave="closeBusinessDimensionPanel"
                 >
-                  <div class="all-sub-dimension-title">{{ dimension.dimensionName }}</div>
+                  <div class="all-sub-dimension-title">{{ dimension.name }}</div>
                   <div class="all-sub-dimension-options">
                     <button
                       type="button"
                       class="all-sub-dimension-chip"
                       :class="{
-                        active:
-                          categoryFilter === dimension.dimensionName && categorySubFilter === 'all',
+                        active: categoryFilter === dimension.name && categorySubFilter === 'all',
                       }"
                       @click="selectBusinessDimensionChild(dimension, 'all')"
                     >
@@ -3823,12 +3773,11 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                       class="all-sub-dimension-chip"
                       :class="{
                         active:
-                          categoryFilter === dimension.dimensionName &&
-                          categorySubFilter === child.dimensionName,
+                          categoryFilter === dimension.name && categorySubFilter === child.name,
                       }"
                       @click="selectBusinessDimensionChild(dimension, child)"
                     >
-                      {{ child.dimensionName }}
+                      {{ child.name }}
                     </button>
                   </div>
                 </div>
@@ -3884,7 +3833,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               <button
                 type="button"
                 class="all-category-chip"
-                :class="{ active: categoryFilter === dimension.dimensionName }"
+                :class="{ active: categoryFilter === dimension.name }"
                 @click="onBusinessDimensionPrimaryClick(dimension, $event)"
               >
                 {{ businessDimensionSelectedLabel(dimension) }}
@@ -3901,14 +3850,13 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                   @mouseenter="keepBusinessDimensionPanelOpen"
                   @mouseleave="closeBusinessDimensionPanel"
                 >
-                  <div class="all-sub-dimension-title">{{ dimension.dimensionName }}</div>
+                  <div class="all-sub-dimension-title">{{ dimension.name }}</div>
                   <div class="all-sub-dimension-options">
                     <button
                       type="button"
                       class="all-sub-dimension-chip"
                       :class="{
-                        active:
-                          categoryFilter === dimension.dimensionName && categorySubFilter === 'all',
+                        active: categoryFilter === dimension.name && categorySubFilter === 'all',
                       }"
                       @click="selectBusinessDimensionChild(dimension, 'all')"
                     >
@@ -3921,12 +3869,11 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                       class="all-sub-dimension-chip"
                       :class="{
                         active:
-                          categoryFilter === dimension.dimensionName &&
-                          categorySubFilter === child.dimensionName,
+                          categoryFilter === dimension.name && categorySubFilter === child.name,
                       }"
                       @click="selectBusinessDimensionChild(dimension, child)"
                     >
-                      {{ child.dimensionName }}
+                      {{ child.name }}
                     </button>
                   </div>
                 </div>
@@ -4486,7 +4433,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
     </div>
 
     <div
-      v-else-if="innerTab === 'approval'"
+      v-else-if="false && innerTab === 'approval'"
       ref="tabPanelRef"
       class="tabs-panel overview-panel admin-approval-panel"
       style="padding-top: 108px !important"
@@ -4624,8 +4571,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
         <div>
           <h2 style="font-size: 42px">运营管理</h2>
           <p class="all-desc">
-            扶摇系统侧关注个人级沉淀、快速验证和产线验证；公司系统侧关注目标系统统一管理的组织级
-            Skill。
+            围绕作业流 Skill 运行数据，持续沉淀个人级优秀 Skill, 识别并孵化组织级高价值 Skill
           </p>
         </div>
         <div class="ops-filter">
@@ -4739,10 +4685,10 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                   type="button"
                   class="ops-dimension-node ops-dimension-node-root"
                   :class="{ active: isOpsBusinessDimensionSelected(dimension) }"
-                  :title="dimension.dimensionName"
+                  :title="dimension.name"
                   @click="selectOpsBusinessDimension(dimension)"
                 >
-                  {{ dimension.dimensionName }}
+                  {{ dimension.name }}
                 </button>
                 <div
                   v-if="businessDimensionChildren(dimension).length"
@@ -4757,10 +4703,10 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                       type="button"
                       class="ops-dimension-node"
                       :class="{ active: isOpsBusinessDimensionSelected(child) }"
-                      :title="`${dimension.dimensionName} / ${child.dimensionName}`"
+                      :title="`${dimension.name} / ${child.name}`"
                       @click="selectOpsBusinessDimension(child, dimension)"
                     >
-                      {{ child.dimensionName }}
+                      {{ child.name }}
                     </button>
                   </div>
                 </div>
@@ -5057,7 +5003,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
       </section>
     </div>
 
-    <div v-else-if="innerTab === 'review'" class="panel tab-panel">
+    <div v-else-if="innerTab === 'review'" class="tabs-panel overview-panel review-panel">
       <ReviewCenterPage />
     </div>
 
