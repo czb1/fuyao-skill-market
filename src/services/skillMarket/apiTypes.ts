@@ -38,9 +38,9 @@ export type CurrentUserRoleDto = {
 };
 
 export type BusinessDimensionDto = {
-  id: number;
-  dimensionCode: string;
-  dimensionName: string;
+  categoryId: number;
+  dimensionCode?: string;
+  categoryName: string;
   name?: string;
   nameEn?: string;
   level?: number;
