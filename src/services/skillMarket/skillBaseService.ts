@@ -244,7 +244,7 @@ export const skillBaseService = {
 
   // 左侧目录栏业务维度查询接口；HTTP 模式下如路径调整，只改 endpoints.businessDimensions 即可
   queryBusinessDimensions: (params: any): any => {
-    return httpRequest.skill<any>({
+    return httpRequest.api<any>({
       url: '/dashboard/categoryStats',
       method: 'get',
       params,

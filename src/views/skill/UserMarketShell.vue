@@ -3018,8 +3018,8 @@ const opsDeptSkillLevelTabs: { key: OpsDeptSkillLevelFilter; label: string }[] =
 ];
 
 const changeSkillLevel = async (value: 'all' | 'personal' | 'org') => {
-  let params: any = { format: 'tree ' };
-  if (vlaue && value !== 'all') {
+  let params: any = { format: 'tree' };
+  if (value && value !== 'all') {
     params['level'] = value === 'personal' ? '个人级' : '组织级';
   }
   await loadBusinessDimensions(params);

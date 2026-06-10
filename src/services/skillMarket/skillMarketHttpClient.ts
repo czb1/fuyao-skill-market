@@ -551,7 +551,7 @@ export function createSkillMarketHttpClient(
       if (env.code !== 0 || !env.data) {
         return {
           code: env.code,
-          message: env.message || '扶摇运营管理：overview 接口失败',
+          message: env.message || '运营管理：overview 接口失败',
           data: emptyOpsDashboardBundle(),
         };
       }

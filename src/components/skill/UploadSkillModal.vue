@@ -317,7 +317,7 @@ async function loadBusinessDimensions(): Promise<void> {
   }
   businessDimensionLoading.value = true;
   try {
-    const env = await skillBaseService.queryBusinessDimensions();
+    const env = await skillBaseService.queryBusinessDimensions({ format: 'tree' });
     if (env?.meta?.success && env?.data) {
       businessDimensions.value = env.data;
     }
