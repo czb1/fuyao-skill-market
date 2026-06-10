@@ -129,8 +129,9 @@ const businessDimensionOptions = computed(() => [...businessDimensions.value]);
 
 const selectedBusinessDimensionItem = computed(
   () =>
-    businessDimensionOptions.value.find((item) => item.name === selectedBusinessDimension.value) ??
-    null,
+    businessDimensionOptions.value.find(
+      (item) => item.categoryName === selectedBusinessDimension.value,
+    ) ?? null,
 );
 
 const selectedBusinessCategoryOptions = computed(() =>
@@ -141,7 +142,7 @@ const selectedBusinessCategoryParam = computed(() => {
   if (selectedBusinessCategory.value) {
     return selectedBusinessCategory.value;
   }
-  const dimensionId = selectedBusinessDimensionItem.value?.id;
+  const dimensionId = selectedBusinessDimensionItem.value?.categoryId;
   return dimensionId !== undefined && dimensionId !== null ? String(dimensionId) : '';
 });
 
@@ -287,11 +288,13 @@ function syncSelectedBusinessDimension(): void {
     return;
   }
   const current = selectedBusinessDimension.value;
-  if (options.some((item) => item.name === current)) {
+  if (options.some((item) => item.categoryName === current)) {
     return;
   }
   selectedBusinessDimension.value =
-    options.find((item) => item.name === '公共')?.name ?? options[0]?.name ?? '公共';
+    options.find((item) => item.categoryName === '公共')?.categoryName ??
+    options[0]?.categoryName ??
+    '公共';
 }
 
 watch(selectedBusinessDimension, () => {
@@ -302,7 +305,7 @@ watch(selectedBusinessCategoryOptions, (options) => {
   if (!selectedBusinessCategory.value) {
     return;
   }
-  if (!options.some((item) => String(item.id) === selectedBusinessCategory.value)) {
+  if (!options.some((item) => String(item.categoryId) === selectedBusinessCategory.value)) {
     selectedBusinessCategory.value = '';
   }
 });
@@ -582,10 +585,10 @@ const onSubmit = async (): Promise<void> => {
                   >
                     <option
                       v-for="dimension in businessDimensionOptions"
-                      :key="dimension.id"
-                      :value="dimension.name"
+                      :key="dimension.categoryId"
+                      :value="dimension.categoryName"
                     >
-                      {{ dimension.name }}
+                      {{ dimension.categoryName }}
                     </option>
                     <option v-if="businessDimensionOptions.length === 0" value="公共">
                       {{ businessDimensionLoading ? '加载中...' : '公共' }}
@@ -604,10 +607,10 @@ const onSubmit = async (): Promise<void> => {
                     >
                       <option
                         v-for="category in selectedBusinessCategoryOptions"
-                        :key="category.id"
-                        :value="String(category.id)"
+                        :key="category.categoryId"
+                        :value="String(category.categoryId)"
                       >
-                        {{ category.name }}
+                        {{ category.categoryName }}
                       </option>
                     </select>
                     <button
@@ -702,7 +705,7 @@ const onSubmit = async (): Promise<void> => {
               </button>
               <span v-if="skillGuideCopied" class="skill-guide-copied">已复制</span>
               <pre class="skill-guide-code"><code>{{ skillFrontMatterExample }}</code></pre>
-              <p>（备注：metaData中version为必填项，tags非必填）</p>
+              <p>（备注：metadata中version为必填项，tags非必填）</p>
             </div>
           </section>
         </div>

@@ -1203,7 +1203,9 @@ onMounted(async () => {
                   <td class="history-dimension-scores">{{ historyRecordScores(record) }}</td>
                   <td>{{ historyRecordMedals(record) }}</td>
                   <td>
-                    <strong class="history-total-score">{{ historyRecordTotalScore(record) }}</strong>
+                    <strong class="history-total-score">{{
+                      historyRecordTotalScore(record)
+                    }}</strong>
                   </td>
                   <td class="history-summary-cell">{{ record.summary }}</td>
                 </tr>
@@ -3990,6 +3992,5 @@ input:focus {
   .history-modal__close {
     width: 100%;
   }
-
 }
 </style>
