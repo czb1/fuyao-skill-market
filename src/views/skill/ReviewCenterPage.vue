@@ -97,8 +97,23 @@ const aiReviewDimensions = [
     score: 94,
     tone: 'red',
     summary: '能把可复用经验沉淀成稳定流程，对减少重复踩坑、沉淀团队知识有直接帮助。',
-  },
+  }
 ];
+
+type RadarPoint = {
+  x: string;
+  y: string;
+};
+
+type RadarAxis = RadarPoint & {
+  key: string;
+};
+
+type RadarLabel = RadarPoint & {
+  key: string;
+  text: string;
+  transform: string;
+};
 
 function replaceReactiveArray<T>(target: T[], source: T[]) {
   target.splice(0, target.length, ...source);
@@ -162,16 +177,42 @@ const activeMetrics = computed(() => {
 });
 
 function buildRadarPoints(scale: number) {
-  const center = 50;
-  const radius = 34 * scale;
   return aiReviewDimensions
     .map((_, index) => {
-      const angle = -Math.PI / 2 + (index * 2 * Math.PI) / aiReviewDimensions.length;
-      const x = center + Math.cos(angle) * radius;
-      const y = center + Math.sin(angle) * radius;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+      const point = buildRadarPoint(index, aiReviewDimensions.length, 34 * scale);
+      return `${point.x},${point.y}`;
     })
     .join(' ');
+}
+
+function buildRadarPoint(index: number, total: number, radius: number): RadarPoint {
+  if (total <= 0) {
+    return { x: '50.0', y: '50.0' };
+  }
+
+  const angle = -Math.PI / 2 + (index * 2 * Math.PI) / total;
+  const x = 50 + Math.cos(angle) * radius;
+  const y = 50 + Math.sin(angle) * radius;
+  return {
+    x: x.toFixed(1),
+    y: y.toFixed(1),
+  };
+}
+
+function radarLabelTransform(index: number, total: number): string {
+  if (total <= 0) {
+    return 'translate(-50%, -50%)';
+  }
+
+  const angle = -Math.PI / 2 + (index * 2 * Math.PI) / total;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+
+  if (Math.abs(cos) < 0.28) {
+    return sin < 0 ? 'translate(-50%, -70%)' : 'translate(-50%, -30%)';
+  }
+
+  return cos > 0 ? 'translate(0, -50%)' : 'translate(-100%, -50%)';
 }
 
 const aiReviewRadarGrid = computed(() => [0.25, 0.5, 0.75, 1].map(buildRadarPoints));
@@ -179,18 +220,39 @@ const aiReviewRadarPoints = computed(() =>
   aiReviewDimensions
     .map((dimension, index) => {
       const scale = dimension.score / maxAiReviewScore;
-      const angle = -Math.PI / 2 + (index * 2 * Math.PI) / aiReviewDimensions.length;
-      const radius = 34 * scale;
-      const x = 50 + Math.cos(angle) * radius;
-      const y = 50 + Math.sin(angle) * radius;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+      const point = buildRadarPoint(index, aiReviewDimensions.length, 34 * scale);
+      return `${point.x},${point.y}`;
     })
     .join(' '),
 );
+const aiReviewRadarAxes = computed<RadarAxis[]>(() =>
+  aiReviewDimensions.map((dimension, index) => ({
+    key: dimension.key,
+    ...buildRadarPoint(index, aiReviewDimensions.length, 34),
+  })),
+);
+const aiReviewRadarLabels = computed<RadarLabel[]>(() =>
+  aiReviewDimensions.map((dimension, index) => ({
+    key: dimension.key,
+    text: `${dimension.key} ${dimension.label}`,
+    transform: radarLabelTransform(index, aiReviewDimensions.length),
+    ...buildRadarPoint(index, aiReviewDimensions.length, 43),
+  })),
+);
 const aiReviewOverallScore = computed(() => {
+  if (aiReviewDimensions.length === 0) {
+    return '0';
+  }
+
   const total = aiReviewDimensions.reduce((sum, dimension) => sum + dimension.score, 0);
   const score = Math.round((total / aiReviewDimensions.length) * 10) / 10;
   return Number.isInteger(score) ? String(score) : score.toFixed(1);
+});
+const aiReviewDimensionDescription = computed(() => {
+  const dimensionText = aiReviewDimensions
+    .map((dimension) => `${dimension.label}（${dimension.name}）`)
+    .join('、');
+  return `SkillHub TRACE 评测体系当前包含 ${aiReviewDimensions.length} 个维度：${dimensionText}，用于评估 Skill 质量。当前结果为 AI 自动化检测 mock 数据，仅供专家评审前参考。`;
 });
 const aiReviewOverallSummary = computed(() => {
   const skillName = activeTask.value?.name ?? '该 Skill';
@@ -660,11 +722,7 @@ onMounted(async () => {
                 <div class="ai-review-brief__icon">i</div>
                 <div>
                   <h2>TRACE 评测维度说明</h2>
-                  <p>
-                    SkillHub TRACE
-                    评测体系从可信任度（Trust）、可靠性（Reliability）、适用性（Adaptability）、规范性（Convention）、有效性（Effectiveness）五个维度评估
-                    Skill 质量。当前结果为 AI 自动化检测 mock 数据，仅供专家评审前参考。
-                  </p>
+                  <p>{{ aiReviewDimensionDescription }}</p>
                   <div class="ai-review-brief__meta">
                     <span>评测主要基于文档结构、任务边界、异常处理和使用反馈生成。</span>
                     <button type="button">评测建议反馈</button>
@@ -674,25 +732,37 @@ onMounted(async () => {
 
               <div class="ai-review-summary-card">
                 <div class="ai-radar" aria-hidden="true">
-                  <svg viewBox="0 0 100 100" role="img">
-                    <polygon
-                      v-for="points in aiReviewRadarGrid"
-                      :key="points"
-                      class="ai-radar__grid"
-                      :points="points"
-                    />
-                    <line x1="50" y1="50" x2="50" y2="16" />
-                    <line x1="50" y1="50" x2="82.3" y2="39.5" />
-                    <line x1="50" y1="50" x2="70" y2="77.5" />
-                    <line x1="50" y1="50" x2="30" y2="77.5" />
-                    <line x1="50" y1="50" x2="17.7" y2="39.5" />
-                    <polygon class="ai-radar__value" :points="aiReviewRadarPoints" />
-                  </svg>
-                  <span class="ai-radar__label ai-radar__label--top">T 可信任度</span>
-                  <span class="ai-radar__label ai-radar__label--right">R 可靠性</span>
-                  <span class="ai-radar__label ai-radar__label--bottom-right">A 适用性</span>
-                  <span class="ai-radar__label ai-radar__label--bottom-left">C 规范性</span>
-                  <span class="ai-radar__label ai-radar__label--left">E 有效性</span>
+                  <div class="ai-radar__stage">
+                    <svg viewBox="0 0 100 100" role="img">
+                      <polygon
+                        v-for="points in aiReviewRadarGrid"
+                        :key="points"
+                        class="ai-radar__grid"
+                        :points="points"
+                      />
+                      <line
+                        v-for="axis in aiReviewRadarAxes"
+                        :key="axis.key"
+                        x1="50"
+                        y1="50"
+                        :x2="axis.x"
+                        :y2="axis.y"
+                      />
+                      <polygon class="ai-radar__value" :points="aiReviewRadarPoints" />
+                    </svg>
+                    <span
+                      v-for="label in aiReviewRadarLabels"
+                      :key="label.key"
+                      class="ai-radar__label"
+                      :style="{
+                        left: `${label.x}%`,
+                        top: `${label.y}%`,
+                        transform: label.transform,
+                      }"
+                    >
+                      {{ label.text }}
+                    </span>
+                  </div>
                 </div>
                 <div class="ai-review-score">
                   <div>
@@ -1990,8 +2060,17 @@ th {
   min-height: 245px;
 }
 
+.ai-radar__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(288px, 100%);
+  aspect-ratio: 1;
+  overflow: visible;
+}
+
 .ai-radar svg {
-  width: min(230px, 78%);
+  width: 76%;
   height: auto;
   overflow: visible;
 }
@@ -2016,36 +2095,14 @@ th {
 
 .ai-radar__label {
   position: absolute;
+  max-width: 118px;
   color: #64748b;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
-}
-
-.ai-radar__label--top {
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.ai-radar__label--right {
-  top: 36%;
-  right: 0;
-}
-
-.ai-radar__label--bottom-right {
-  right: 8%;
-  bottom: 12px;
-}
-
-.ai-radar__label--bottom-left {
-  bottom: 12px;
-  left: 8%;
-}
-
-.ai-radar__label--left {
-  top: 36%;
-  left: 0;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
 }
 
 .ai-review-score {
