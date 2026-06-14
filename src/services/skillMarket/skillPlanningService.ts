@@ -20,6 +20,12 @@ export interface SkillPlanningItem {
 
 export interface SkillPlanningQuery {
   department?: string;
+  DepartmentL1?: string;
+  DepartmentL2?: string;
+  DepartmentL3?: string;
+  DepartmentL4?: string;
+  DepartmentL5?: string;
+  DepartmentL6?: string;
   primaryScene?: string;
   secondaryScene?: string;
   activity?: string;
@@ -241,9 +247,22 @@ function matchesDateRange(item: SkillPlanningItem, query: SkillPlanningQuery): b
 
 function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
   const keyword = normalizeText(query.keyword).toLowerCase();
+  const department =
+    normalizeText(query.department) ||
+    [
+      query.DepartmentL6,
+      query.DepartmentL5,
+      query.DepartmentL4,
+      query.DepartmentL3,
+      query.DepartmentL2,
+      query.DepartmentL1,
+    ]
+      .map(normalizeText)
+      .find(Boolean) ||
+    '';
 
   return skillPlanningItems.filter((item) => {
-    if (query.department && item.department !== query.department) return false;
+    if (department && item.department !== department) return false;
     if (query.primaryScene && item.primaryScene !== query.primaryScene) return false;
     if (query.secondaryScene && item.secondaryScene !== query.secondaryScene) return false;
     if (query.activity && item.activity !== query.activity) return false;

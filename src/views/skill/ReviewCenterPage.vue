@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import MarketDeptCascader from '../../components/skill/MarketDeptCascader.vue';
 import {
   loadReviewCenterData,
   type ComputeChannelRow,
@@ -10,6 +11,22 @@ import {
   type ReviewRankingCard,
   type ReviewTaskCard,
 } from '../../services/skillMarket/reviewCenterDataSource';
+
+type ReviewDepartmentTreeNode = {
+  name: string;
+  children?: ReviewDepartmentTreeNode[];
+};
+
+const props = withDefaults(
+  defineProps<{
+    userId?: string;
+    departmentTree?: ReviewDepartmentTreeNode[];
+  }>(),
+  {
+    userId: '',
+    departmentTree: () => [],
+  },
+);
 
 const rankingCards = ref<ReviewRankingCard[]>([]);
 const taskCards = reactive<ReviewTaskCard[]>([]);
@@ -584,9 +601,199 @@ function submitComputeChannel() {
   closeComputeChannelModal();
 }
 
+// 评审列表排序
+const sortType = ref<'按下载量' | '按AI评分'>('按下载量')
+const sortTypeValue = computed(() => reviewSortList.value.find((item) => item.name === sortType.value)?.value ?? sortType.value)
+const reviewSortList = ref<any>([
+  {value: 'downloads', name: '按下载量'},
+  {value: 'aiScore', name:'按AI评分'},
+])
+
+// 审批状态相关
+const reviewStatus = ref<'全部' | '待审批' | '已审批'>('待审批')
+const reviewStatusValue = computed(() => reviewStatusList.value.find((item) => item.name === reviewStatus.value)?.value ?? reviewStatus.value)
+const reviewStatusList = ref([
+  {value: 'ALL', name: '全部'},
+  {value: 'PENDING', name: '待审批'},
+  {value: 'REVIEWED', name: '已审批'}
+])
+
+function formatReviewMonth(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function getPreviousReviewMonth(): string {
+  const now = new Date();
+  return formatReviewMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+}
+
+const currentReviewYear = new Date().getFullYear();
+const currentReviewMonth = formatReviewMonth(new Date());
+const selectedReviewMonth = ref(getPreviousReviewMonth())
+const reviewMonthPickerOpen = ref(false)
+const reviewMonthViewYear = ref(currentReviewYear)
+const reviewMonthPickerRef = ref<HTMLElement | null>(null)
+const reviewMonthOptions = Array.from({ length: 12 }, (_, index) => {
+  const value = String(index + 1).padStart(2, '0');
+  return {
+    value,
+    label: `${index + 1}月`,
+  };
+})
+const selectedReviewMonthLabel = computed(() => {
+  if (!selectedReviewMonth.value) {
+    return ''
+  }
+
+  const [year, month] = selectedReviewMonth.value.split('-')
+  if (!year || !month) {
+    return ''
+  }
+
+  return `${year}-${month}`
+})
+
+function reviewMonthValue(month: string): string {
+  return `${reviewMonthViewYear.value}-${month}`
+}
+
+function toggleReviewMonthPicker(): void {
+  if (!reviewMonthPickerOpen.value) {
+    reviewMonthViewYear.value = selectedReviewMonth.value
+      ? Number(selectedReviewMonth.value.slice(0, 4))
+      : currentReviewYear
+  }
+
+  reviewMonthPickerOpen.value = !reviewMonthPickerOpen.value
+}
+
+function changeReviewMonthYear(delta: number): void {
+  reviewMonthViewYear.value += delta
+}
+
+function selectReviewMonth(month: string): void {
+  selectedReviewMonth.value = reviewMonthValue(month)
+  reviewMonthPickerOpen.value = false
+  void reloadReviewCenterTasks()
+}
+
+function clearReviewMonth(): void {
+  selectedReviewMonth.value = ''
+  reviewMonthViewYear.value = currentReviewYear
+  reviewMonthPickerOpen.value = false
+  void reloadReviewCenterTasks()
+}
+
+function isSelectedReviewMonth(month: string): boolean {
+  return selectedReviewMonth.value === reviewMonthValue(month)
+}
+
+function isCurrentReviewMonth(month: string): boolean {
+  return currentReviewMonth === reviewMonthValue(month)
+}
+
+function handleReviewMonthOutsideClick(event: MouseEvent): void {
+  const target = event.target
+  if (!(target instanceof Node)) {
+    return
+  }
+
+  if (!reviewMonthPickerRef.value?.contains(target)) {
+    reviewMonthPickerOpen.value = false
+  }
+}
+
+const reviewDepartmentTree = computed(() => props.departmentTree ?? []);
+const reviewDepartmentSegments = ref<string[]>([]);
+const DepartmentL1 = ref('');
+const DepartmentL2 = ref('');
+const DepartmentL3 = ref('');
+const DepartmentL4 = ref('');
+const DepartmentL5 = ref('');
+const DepartmentL6 = ref('');
+const reviewDepartmentLevelRefs = [
+  DepartmentL1,
+  DepartmentL2,
+  DepartmentL3,
+  DepartmentL4,
+  DepartmentL5,
+  DepartmentL6,
+] as const;
+
+function syncReviewDepartmentLevels(segments = reviewDepartmentSegments.value): void {
+  reviewDepartmentLevelRefs.forEach((levelRef, index) => {
+    levelRef.value = segments[index] ?? '';
+  });
+}
+
+function reviewDepartmentLevelParams() {
+  return {
+    DepartmentL1: DepartmentL1.value,
+    DepartmentL2: DepartmentL2.value,
+    DepartmentL3: DepartmentL3.value,
+    DepartmentL4: DepartmentL4.value,
+    DepartmentL5: DepartmentL5.value,
+    DepartmentL6: DepartmentL6.value,
+  };
+}
+
+const reviewListFilterObj = reactive<any>({
+  userId: '',
+  reviewStatus: '',
+  yearMonth: '',
+  sortBy: '',
+  DepartmentL1: '',
+  DepartmentL2: '',
+  DepartmentL3: '',
+  DepartmentL4: '',
+  DepartmentL5: '',
+  DepartmentL6: '',
+})
+
+function syncReviewListFilterObj() {
+  const nextParams = {
+    userId: props.userId ?? '',
+    reviewStatus: reviewStatusValue.value,
+    yearMonth: selectedReviewMonthLabel.value,
+    sortBy: sortTypeValue.value,
+    ...reviewDepartmentLevelParams(),
+  };
+
+  Object.assign(reviewListFilterObj, nextParams);
+  return { ...nextParams };
+}
+
+async function reloadReviewCenterTasks(): Promise<void> {
+  const params = syncReviewListFilterObj();
+  const data = await loadReviewCenterData(props.userId ?? '', params);
+  applyReviewCenterData(data);
+}
+
+function onReviewDepartmentChange(segments: string[]): void {
+  syncReviewDepartmentLevels(segments);
+}
+
+async function onReviewDepartmentDone(segments: string[]): Promise<void> {
+  syncReviewDepartmentLevels(segments);
+  await reloadReviewCenterTasks();
+}
+
+async function onReviewDepartmentClear(): Promise<void> {
+  reviewDepartmentSegments.value = [];
+  syncReviewDepartmentLevels([]);
+  await reloadReviewCenterTasks();
+}
+
 onMounted(async () => {
-  applyReviewCenterData(await loadReviewCenterData());
+  await reloadReviewCenterTasks();
+  document.addEventListener('mousedown', handleReviewMonthOutsideClick)
 });
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleReviewMonthOutsideClick)
+})
 </script>
 
 <template>
@@ -609,20 +816,98 @@ onMounted(async () => {
             <div class="toolbar-controls task-filter-controls">
               <label class="toolbar-filter">
                 <span class="toolbar-filter__label">评审状态</span>
-                <select aria-label="评审状态">
-                  <option>待评审</option>
-                  <option>已评审</option>
-                  <option>全部</option>
+                <select
+                  v-model="reviewStatus"
+                  :placeholder="'请选择评审类型'"
+                  size="lg"
+                  @change="reloadReviewCenterTasks"
+                >
+                  <option v-for="(option, index) in reviewStatusList" :key="index" :value="option.name">{{ option.name }}</option>
                 </select>
               </label>
-              <label class="toolbar-filter">
+              <div class="toolbar-filter toolbar-filter--month">
                 <span class="toolbar-filter__label">月度</span>
-                <select aria-label="月度">
-                  <option>2026年05月</option>
-                  <option>2026年06月</option>
-                  <option>全部</option>
-                </select>
-              </label>
+                <div ref="reviewMonthPickerRef" class="review-month-picker">
+                  <div class="review-month-picker__control">
+                    <button
+                      type="button"
+                      class="review-month-picker__trigger"
+                      :class="{ 'is-empty': !selectedReviewMonth }"
+                      aria-label="月度"
+                      :aria-expanded="reviewMonthPickerOpen"
+                      @click="toggleReviewMonthPicker"
+                    >
+                      <span class="review-month-picker__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <path
+                            d="M7 3v3M17 3v3M4.5 9.2h15M6.5 5h11A2.5 2.5 0 0 1 20 7.5v10A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5v-10A2.5 2.5 0 0 1 6.5 5Z"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span class="review-month-picker__value">
+                        {{ selectedReviewMonthLabel || '选择月度' }}
+                      </span>
+                      <span class="review-month-picker__arrow" aria-hidden="true" />
+                    </button>
+                    <button
+                      v-if="selectedReviewMonth"
+                      type="button"
+                      class="review-month-picker__clear"
+                      aria-label="清除月度"
+                      @click.stop="clearReviewMonth"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div v-if="reviewMonthPickerOpen" class="review-month-picker__panel">
+                    <div class="review-month-picker__head">
+                      <button
+                        type="button"
+                        class="review-month-picker__year-btn"
+                        aria-label="上一年"
+                        @click="changeReviewMonthYear(-1)"
+                      >
+                        ‹
+                      </button>
+                      <strong>{{ reviewMonthViewYear }}年</strong>
+                      <button
+                        type="button"
+                        class="review-month-picker__year-btn"
+                        aria-label="下一年"
+                        @click="changeReviewMonthYear(1)"
+                      >
+                        ›
+                      </button>
+                    </div>
+                    <div class="review-month-picker__months">
+                      <button
+                        v-for="month in reviewMonthOptions"
+                        :key="month.value"
+                        type="button"
+                        :class="[
+                          'review-month-picker__month',
+                          {
+                            'is-selected': isSelectedReviewMonth(month.value),
+                            'is-current': isCurrentReviewMonth(month.value),
+                          },
+                        ]"
+                        @click="selectReviewMonth(month.value)"
+                      >
+                        {{ month.label }}
+                      </button>
+                    </div>
+                    <div class="review-month-picker__foot">
+                      <button type="button" @click="clearReviewMonth">清除</button>
+                      <button type="button" @click="reviewMonthPickerOpen = false">关闭</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <label class="toolbar-filter">
                 <span class="toolbar-filter__label">业务维度</span>
                 <select aria-label="业务维度">
@@ -637,21 +922,28 @@ onMounted(async () => {
                   <option>全部</option>
                 </select>
               </label>
-              <label class="toolbar-filter">
+              <div class="toolbar-filter toolbar-filter--dept">
                 <span class="toolbar-filter__label">部门</span>
-                <select aria-label="部门">
-                  <option>xx部门</option>
-                  <option>yy部门</option>
-                  <option>zz部门</option>
-                </select>
-              </label>
+                <MarketDeptCascader
+                  v-model="reviewDepartmentSegments"
+                  class="review-dept-cascader"
+                  :tree="reviewDepartmentTree"
+                  :max-level="6"
+                  aria-label="评审部门级联筛选（DepartmentL1～DepartmentL6）"
+                  @change="onReviewDepartmentChange"
+                  @clear="onReviewDepartmentClear"
+                  @done="onReviewDepartmentDone"
+                />
+              </div>
               <label class="toolbar-filter">
                 <span class="toolbar-filter__label">排序</span>
-                <select aria-label="排序">
-                  <option>按季度得分情况排序</option>
-                  <option>按本月得分情况排序</option>
-                  <option>按本周得分情况排序</option>
-                  <option>按今天得分情况排序</option>
+                <select
+                  v-model="sortType"
+                  placeholder="请选择排序方式"
+                  size="lg"
+                  @change="reloadReviewCenterTasks"
+                >
+                  <option v-for="(option, index) in reviewSortList" :key="index" :value="option.name">{{ option.name }}</option>
                 </select>
               </label>
             </div>
@@ -1679,6 +1971,7 @@ th {
 }
 
 .toolbar-controls select,
+.toolbar-controls input[type='month'],
 .toolbar-controls button,
 .expert-editor select {
   height: 38px;
@@ -1690,14 +1983,325 @@ th {
   font-weight: 700;
 }
 
-.toolbar-controls select {
+.toolbar-controls select,
+.toolbar-controls input[type='month'] {
   min-width: 150px;
   padding: 0 10px;
+}
+
+.toolbar-controls input[type='month'] {
+  box-sizing: border-box;
+}
+
+.toolbar-controls input[type='month']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.72;
+}
+
+.toolbar-filter--month {
+  position: relative;
+}
+
+.toolbar-filter--dept {
+  min-width: 0;
+}
+
+.review-dept-cascader {
+  width: 100%;
+  min-width: 0;
+}
+
+.review-dept-cascader :deep(.market-dept-cascader-trigger) {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 30px 0 10px;
+  border-color: #cad6e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #233752;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.review-dept-cascader :deep(.market-dept-cascader-trigger:hover) {
+  border-color: #b8c5d6;
+  background: #f8fafc;
+}
+
+.review-dept-cascader :deep(.market-dept-cascader-trigger.is-open),
+.review-dept-cascader :deep(.market-dept-cascader-trigger:focus) {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+}
+
+.review-dept-cascader :deep(.market-dept-cascader-caret) {
+  right: 10px;
+}
+
+.review-month-picker {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.review-month-picker button {
+  min-width: 0;
+  padding: 0;
+}
+
+.review-month-picker__control {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.review-month-picker__trigger {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 34px 0 11px;
+  border: 1px solid #cad6e5;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 255, 0.98) 100%),
+    linear-gradient(135deg, rgba(47, 125, 246, 0.14), rgba(117, 82, 255, 0.1));
+  color: #233752;
+  font: inherit;
+  font-weight: 800;
+  box-shadow:
+    0 8px 20px rgba(37, 99, 235, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+}
+
+.review-month-picker__trigger:hover,
+.review-month-picker__trigger[aria-expanded='true'] {
+  border-color: #8bb8ff;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%),
+    linear-gradient(135deg, rgba(47, 125, 246, 0.18), rgba(117, 82, 255, 0.14));
+  box-shadow:
+    0 10px 24px rgba(37, 99, 235, 0.1),
+    0 0 0 3px rgba(47, 125, 246, 0.08);
+}
+
+.review-month-picker__trigger.is-empty {
+  color: #8a98ad;
+}
+
+.review-month-picker__icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: #377df0;
+}
+
+.review-month-picker__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.review-month-picker__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-month-picker__arrow {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.7px solid #64748b;
+  border-bottom: 1.7px solid #64748b;
+  transform: translateY(-68%) rotate(45deg);
+}
+
+.review-month-picker__clear {
+  position: absolute;
+  top: 25%;
+  right: 27px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: #eef4ff;
+  color: #64748b;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.review-month-picker__clear:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.review-month-picker__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 45;
+  width: min(292px, calc(100vw - 48px));
+  padding: 12px;
+  border: 1px solid #dbe7ff;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(47, 125, 246, 0.08), transparent 36%),
+    radial-gradient(circle at 88% 10%, rgba(117, 82, 255, 0.1), transparent 34%),
+    #ffffff;
+  box-shadow:
+    0 22px 48px rgba(22, 34, 51, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.review-month-picker__head {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.review-month-picker__head strong {
+  color: #10243e;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.review-month-picker__year-btn {
+  width: 34px;
+  height: 32px;
+  border: 1px solid #dbe7ff;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #2563eb;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.review-month-picker__year-btn:hover {
+  border-color: #9ec5ff;
+  background: #eef6ff;
+}
+
+.review-month-picker__months {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.review-month-picker__month {
+  height: 34px;
+  border: 1px solid #e6edf7;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #334155;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.review-month-picker__month:hover {
+  border-color: #9ec5ff;
+  background: #eef6ff;
+  color: #1d4ed8;
+}
+
+.review-month-picker__month.is-current {
+  border-color: #bfdbfe;
+  background: #f0f7ff;
+  color: #2563eb;
+}
+
+.review-month-picker__month.is-selected {
+  border-color: #2563eb;
+  background: linear-gradient(135deg, #2f7df6 0%, #7552ff 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(47, 125, 246, 0.22);
+}
+
+.review-month-picker__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f7;
+}
+
+.review-month-picker__foot button {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #dbe7ff;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.review-month-picker__foot button:hover {
+  border-color: #9ec5ff;
+  color: #1d4ed8;
+  background: #f8fbff;
 }
 
 .toolbar-controls button {
   min-width: 200px;
   padding: 0 14px;
+}
+
+.toolbar-controls .review-month-picker__trigger {
+  min-width: 0;
+  height: 38px;
+  padding: 0 34px 0 11px;
+}
+
+.toolbar-controls .review-month-picker__clear {
+  min-width: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+}
+
+.toolbar-controls .review-month-picker__year-btn {
+  min-width: 0;
+  width: 34px;
+  height: 32px;
+  padding: 0;
+}
+
+.toolbar-controls .review-month-picker__month {
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+}
+
+.toolbar-controls .review-month-picker__foot button {
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
 }
 
 .board-layout {
@@ -1739,7 +2343,8 @@ th {
 }
 
 .task-filter-controls .toolbar-filter,
-.task-filter-controls select {
+.task-filter-controls select,
+.task-filter-controls input[type='month'] {
   width: 100%;
   min-width: 0;
 }
@@ -2045,7 +2650,7 @@ th {
 
 .ai-review-summary-card {
   display: grid;
-  grid-template-columns: minmax(230px, 0.85fr) minmax(280px, 1.15fr);
+  grid-template-columns: minmax(245px, 280px) minmax(280px, 1.15fr);
   gap: 18px;
   padding: 22px;
   border-color: #edf1f7;
@@ -2057,7 +2662,7 @@ th {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 245px;
+  height: 245px;
 }
 
 .ai-radar__stage {
@@ -3963,6 +4568,7 @@ input:focus {
   .toolbar-controls,
   .toolbar-filter,
   .toolbar-controls select,
+  .toolbar-controls input[type='month'],
   .toolbar-controls button,
   .primary-action,
   .expert-review__header button {

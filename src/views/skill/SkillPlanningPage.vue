@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import MarketDeptCascader from '../../components/skill/MarketDeptCascader.vue';
 import {
   batchDeleteSkillPlanning,
   batchUpdateSkillPlanning,
@@ -18,16 +19,21 @@ import {
 } from '../../services/skillMarket/skillPlanningService';
 
 type PlanningFormMode = 'create' | 'edit';
+type PlanningDepartmentTreeNode = {
+  name: string;
+  children?: PlanningDepartmentTreeNode[];
+};
+
+const props = withDefaults(
+  defineProps<{
+    departmentTree?: PlanningDepartmentTreeNode[];
+  }>(),
+  {
+    departmentTree: () => [],
+  },
+);
 
 const progressOptions: SkillPlanningProgress[] = ['未开始', '开发中', '联调中', '已完成', '已延期'];
-const departmentOptions = [
-  '平台工具部',
-  '质量工具组',
-  '数据平台部',
-  '研发效能部',
-  '云平台部',
-  '客户成功部',
-];
 const primarySceneOptions = [
   '研发提效',
   '质量保障',
@@ -70,6 +76,12 @@ const pageSizeOptions = [5, 10, 20, 50];
 
 const emptyFilters = {
   department: '',
+  DepartmentL1: '',
+  DepartmentL2: '',
+  DepartmentL3: '',
+  DepartmentL4: '',
+  DepartmentL5: '',
+  DepartmentL6: '',
   primaryScene: '',
   secondaryScene: '',
   activity: '',
@@ -84,6 +96,22 @@ const emptyFilters = {
 
 const filterForm = reactive({ ...emptyFilters });
 const appliedFilters = reactive({ ...emptyFilters });
+const planningDepartmentTree = computed(() => props.departmentTree ?? []);
+const planningDepartmentSegments = ref<string[]>([]);
+const DepartmentL1 = ref('');
+const DepartmentL2 = ref('');
+const DepartmentL3 = ref('');
+const DepartmentL4 = ref('');
+const DepartmentL5 = ref('');
+const DepartmentL6 = ref('');
+const planningDepartmentLevelRefs = [
+  DepartmentL1,
+  DepartmentL2,
+  DepartmentL3,
+  DepartmentL4,
+  DepartmentL5,
+  DepartmentL6,
+] as const;
 const rows = ref<SkillPlanningItem[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -91,6 +119,11 @@ const pageSize = ref(10);
 const loading = ref(false);
 const selectedIds = ref<string[]>([]);
 const importInputRef = ref<HTMLInputElement | null>(null);
+const importDialogOpen = ref(false);
+const importDragging = ref(false);
+const importSubmitting = ref(false);
+const selectedImportFile = ref<File | null>(null);
+const importError = ref('');
 const toast = ref('');
 let toastTimer: ReturnType<typeof window.setTimeout> | null = null;
 
@@ -123,6 +156,13 @@ const allPageSelected = computed(
   () => rows.value.length > 0 && rows.value.every((row) => selectedIds.value.includes(row.id)),
 );
 const hasSelectedRows = computed(() => selectedIds.value.length > 0);
+const selectedImportFileSize = computed(() => {
+  if (!selectedImportFile.value) {
+    return '';
+  }
+  const size = selectedImportFile.value.size / 1024;
+  return size >= 1024 ? `${(size / 1024).toFixed(2)} MB` : `${Math.max(1, Math.round(size))} KB`;
+});
 
 function createEmptyPlanningForm(): SkillPlanningPayload {
   return {
@@ -149,6 +189,27 @@ function showToast(message: string) {
   toastTimer = window.setTimeout(() => {
     toast.value = '';
   }, 2400);
+}
+
+function syncPlanningDepartmentLevels(segments = planningDepartmentSegments.value): void {
+  planningDepartmentLevelRefs.forEach((levelRef, index) => {
+    levelRef.value = segments[index] ?? '';
+    filterForm[`DepartmentL${index + 1}` as keyof typeof filterForm] = levelRef.value;
+  });
+  filterForm.department = segments[segments.length - 1] ?? '';
+}
+
+function onPlanningDepartmentChange(segments: string[]): void {
+  syncPlanningDepartmentLevels(segments);
+}
+
+function onPlanningDepartmentDone(segments: string[]): void {
+  syncPlanningDepartmentLevels(segments);
+}
+
+function onPlanningDepartmentClear(): void {
+  planningDepartmentSegments.value = [];
+  syncPlanningDepartmentLevels([]);
 }
 
 function buildQuery(overrides: Partial<SkillPlanningQuery> = {}): SkillPlanningQuery {
@@ -179,12 +240,15 @@ async function reloadList() {
 }
 
 async function queryList() {
+  syncPlanningDepartmentLevels();
   Object.assign(appliedFilters, filterForm);
   page.value = 1;
   await reloadList();
 }
 
 async function resetQuery() {
+  planningDepartmentSegments.value = [];
+  syncPlanningDepartmentLevels([]);
   Object.assign(filterForm, emptyFilters);
   Object.assign(appliedFilters, emptyFilters);
   page.value = 1;
@@ -277,26 +341,87 @@ async function submitPlanningForm() {
 }
 
 function triggerImport() {
+  importDialogOpen.value = true;
+  importDragging.value = false;
+  importError.value = '';
+  selectedImportFile.value = null;
+  if (importInputRef.value) {
+    importInputRef.value.value = '';
+  }
+}
+
+function closeImportDialog() {
+  if (importSubmitting.value) {
+    return;
+  }
+  importDialogOpen.value = false;
+  importDragging.value = false;
+  importError.value = '';
+  selectedImportFile.value = null;
+}
+
+function openImportFilePicker() {
   importInputRef.value?.click();
 }
 
-async function handleImportFile(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
+function isExcelFile(file: File): boolean {
+  return /\.(xlsx|xls)$/i.test(file.name);
+}
+
+function selectImportFile(file: File | undefined | null) {
   if (!file) {
     return;
   }
 
-  const result = await importSkillPlanningFromExcel(file);
-  if (result.missingFields.length > 0) {
-    showToast(`导入失败，缺少字段：${result.missingFields.join('、')}`);
+  if (!isExcelFile(file)) {
+    selectedImportFile.value = null;
+    importError.value = '仅支持 .xlsx 或 .xls 格式的 Excel 文件';
+    showToast(importError.value);
     return;
   }
 
-  showToast(`已导入 ${result.created} 条 Skill 规划`);
-  page.value = 1;
-  await reloadList();
+  selectedImportFile.value = file;
+  importError.value = '';
+}
+
+function handleImportFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  selectImportFile(input.files?.[0]);
+  input.value = '';
+}
+
+function handleImportDrop(event: DragEvent) {
+  importDragging.value = false;
+  selectImportFile(event.dataTransfer?.files?.[0]);
+}
+
+async function submitImportFile() {
+  if (!selectedImportFile.value) {
+    importError.value = '请先选择或拖入一个 Excel 文件';
+    showToast(importError.value);
+    return;
+  }
+
+  try {
+    importSubmitting.value = true;
+    const result = await importSkillPlanningFromExcel(selectedImportFile.value);
+    if (result.missingFields.length > 0) {
+      importError.value = `导入失败，缺少字段：${result.missingFields.join('、')}`;
+      showToast(importError.value);
+      return;
+    }
+
+    showToast(`已导入 ${result.created} 条 Skill 规划`);
+    importSubmitting.value = false;
+    closeImportDialog();
+    page.value = 1;
+    await reloadList();
+  } catch (error) {
+    importError.value = error instanceof Error ? error.message : '导入失败，请检查文件内容';
+    showToast(importError.value);
+  } finally {
+    importSubmitting.value = false;
+  }
 }
 
 async function exportCurrentData() {
@@ -458,13 +583,19 @@ onMounted(() => {
 
     <section class="planning-filter-card" aria-label="Skill 规划查询">
       <div class="filter-grid">
-        <label class="planning-field">
+        <div class="planning-field planning-field--dept">
           <span>归属部门</span>
-          <select v-model="filterForm.department">
-            <option value="">全部</option>
-            <option v-for="item in departmentOptions" :key="item" :value="item">{{ item }}</option>
-          </select>
-        </label>
+          <MarketDeptCascader
+            v-model="planningDepartmentSegments"
+            class="planning-dept-cascader"
+            :tree="planningDepartmentTree"
+            :max-level="6"
+            aria-label="Skill 规划部门级联筛选（DepartmentL1～DepartmentL6）"
+            @change="onPlanningDepartmentChange"
+            @clear="onPlanningDepartmentClear"
+            @done="onPlanningDepartmentDone"
+          />
+        </div>
         <label class="planning-field">
           <span>一级场景</span>
           <select v-model="filterForm.primaryScene">
@@ -571,7 +702,7 @@ onMounted(() => {
             </svg>
             导出
           </button>
-          <button type="button" class="planning-btn planning-btn--soft" @click="openBatchDialog">
+          <button v-if="false" type="button" class="planning-btn planning-btn--soft" @click="openBatchDialog">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h10M4 12h8M4 17h6M17 5l2 2-7 7-3 1 1-3 7-7Z" />
             </svg>
@@ -700,6 +831,101 @@ onMounted(() => {
         </div>
       </div>
     </section>
+
+    <Teleport to="body">
+      <div
+        v-if="importDialogOpen"
+        class="planning-overlay"
+        role="presentation"
+        @click.self="closeImportDialog"
+      >
+        <div class="planning-dialog planning-dialog--import" role="dialog" aria-modal="true">
+          <div class="planning-dialog__head import-dialog__head">
+            <div>
+              <strong>导入 Skill 规划</strong>
+              <p>上传 Excel 文件后，将按表头字段批量写入 Skill 规划清单。</p>
+            </div>
+            <button
+              type="button"
+              class="dialog-close"
+              aria-label="关闭"
+              :disabled="importSubmitting"
+              @click="closeImportDialog"
+            >
+              ×
+            </button>
+          </div>
+
+          <div class="import-dialog__body">
+            <div
+              class="import-dropzone"
+              :class="{
+                'is-dragging': importDragging,
+                'has-file': selectedImportFile,
+              }"
+              role="button"
+              tabindex="0"
+              @click="openImportFilePicker"
+              @keydown.enter.prevent="openImportFilePicker"
+              @keydown.space.prevent="openImportFilePicker"
+              @dragenter.prevent="importDragging = true"
+              @dragover.prevent="importDragging = true"
+              @dragleave.prevent="importDragging = false"
+              @drop.prevent="handleImportDrop"
+            >
+              <div class="import-dropzone__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 15V4m0 0 4.5 4.5M12 4 7.5 8.5" />
+                  <path d="M5 14.5V17a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-2.5" />
+                </svg>
+              </div>
+              <div class="import-dropzone__copy">
+                <strong>{{ selectedImportFile ? selectedImportFile.name : '拖拽 Excel 文件到这里' }}</strong>
+                <span v-if="selectedImportFile">
+                  {{ selectedImportFileSize }} · 点击可重新选择文件
+                </span>
+                <span v-else>或点击选择文件，支持 .xlsx / .xls</span>
+              </div>
+              <button type="button" class="import-dropzone__pick" @click.stop="openImportFilePicker">
+                选择文件
+              </button>
+            </div>
+
+            <p v-if="importError" class="import-dialog__error">{{ importError }}</p>
+
+            <div class="import-dialog__tips">
+              <div>
+                <strong>字段校验</strong>
+                <span>表头需与规划清单字段保持一致，缺失字段会在导入前提示。</span>
+              </div>
+              <div>
+                <strong>支持字段</strong>
+                <span>一级场景、二级场景、归属活动、归属子活动、Skill 名称、Skill 说明等。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="planning-dialog__actions import-dialog__actions">
+            <button
+              type="button"
+              class="planning-btn planning-btn--ghost"
+              :disabled="importSubmitting"
+              @click="closeImportDialog"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class="planning-btn planning-btn--primary"
+              :disabled="!selectedImportFile || importSubmitting"
+              @click="submitImportFile"
+            >
+              {{ importSubmitting ? '导入中...' : '开始导入' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div
@@ -1000,6 +1226,44 @@ onMounted(() => {
 .planning-field input,
 .planning-field select {
   padding: 0 11px;
+}
+
+.planning-field--dept {
+  min-width: 0;
+}
+
+.planning-dept-cascader {
+  width: 100%;
+  min-width: 0;
+}
+
+.planning-dept-cascader :deep(.market-dept-cascader-trigger) {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 30px 0 11px;
+  border-color: #d8e2f0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #253857;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.planning-dept-cascader :deep(.market-dept-cascader-trigger:hover) {
+  border-color: #c0ccdc;
+  background: #f8fbff;
+}
+
+.planning-dept-cascader :deep(.market-dept-cascader-trigger.is-open),
+.planning-dept-cascader :deep(.market-dept-cascader-trigger:focus) {
+  border-color: #5b8ff9;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(47, 125, 246, 0.14);
+}
+
+.planning-dept-cascader :deep(.market-dept-cascader-caret) {
+  right: 10px;
 }
 
 .planning-field textarea {
@@ -1342,6 +1606,10 @@ onMounted(() => {
   width: min(940px, calc(100vw - 40px));
 }
 
+.planning-dialog--import {
+  width: min(720px, calc(100vw - 40px));
+}
+
 .planning-dialog__head {
   display: flex;
   align-items: flex-start;
@@ -1363,6 +1631,13 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.import-dialog__head {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(47, 125, 246, 0.1), transparent 34%),
+    radial-gradient(circle at 92% 16%, rgba(117, 82, 255, 0.1), transparent 36%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
 .dialog-close {
   width: 32px;
   height: 32px;
@@ -1378,6 +1653,161 @@ onMounted(() => {
 .dialog-close:hover {
   border-color: #dbe5f2;
   background: #ffffff;
+}
+
+.import-dialog__body {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.import-dropzone {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 168px;
+  padding: 26px;
+  border: 1.5px dashed #b9ccff;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(47, 125, 246, 0.08) 0%, rgba(117, 82, 255, 0.07) 100%),
+    #f8fbff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78),
+    0 14px 34px rgba(35, 52, 84, 0.07);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.import-dropzone:hover,
+.import-dropzone.is-dragging {
+  border-color: #4f7cff;
+  background:
+    linear-gradient(135deg, rgba(47, 125, 246, 0.13) 0%, rgba(117, 82, 255, 0.12) 100%),
+    #f6f9ff;
+  box-shadow:
+    0 0 0 4px rgba(79, 124, 255, 0.12),
+    0 18px 42px rgba(35, 52, 84, 0.1);
+  transform: translateY(-1px);
+}
+
+.import-dropzone.has-file {
+  border-style: solid;
+  border-color: #93c5fd;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(46, 205, 211, 0.12), transparent 30%),
+    linear-gradient(135deg, rgba(47, 125, 246, 0.1) 0%, rgba(117, 82, 255, 0.08) 100%),
+    #ffffff;
+}
+
+.import-dropzone__icon {
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #2f7df6 0%, #7552ff 100%);
+  color: #ffffff;
+  box-shadow: 0 16px 30px rgba(47, 125, 246, 0.26);
+}
+
+.import-dropzone__icon svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.import-dropzone__copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.import-dropzone__copy strong {
+  overflow: hidden;
+  color: #10243e;
+  font-size: 18px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-dropzone__copy span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.import-dropzone__pick {
+  min-width: 92px;
+  height: 38px;
+  border: 1px solid #bfd5ff;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.08);
+}
+
+.import-dropzone__pick:hover {
+  border-color: #60a5fa;
+  background: #eff6ff;
+}
+
+.import-dialog__error {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.import-dialog__tips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.import-dialog__tips > div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #e6edf7;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.import-dialog__tips strong {
+  color: #253857;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.import-dialog__tips span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.import-dialog__actions {
+  background: #fbfdff;
 }
 
 .planning-form-grid {
@@ -1497,6 +1927,21 @@ onMounted(() => {
   .pagination-controls {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .import-dropzone {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 22px 18px;
+    text-align: center;
+  }
+
+  .import-dropzone__copy strong {
+    white-space: normal;
+  }
+
+  .import-dialog__tips {
+    grid-template-columns: 1fr;
   }
 }
 </style>

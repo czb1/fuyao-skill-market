@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import type { CSSProperties } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import MarketDeptCascader from '../../components/skill/MarketDeptCascader.vue';
 import SkillCard from '../../components/skill/SkillCard.vue';
 import SkillDetailDialog from '../../components/skill/SkillDetailDialog.vue';
 import SkillVersionManageDialog from '../../components/skill/SkillVersionManageDialog.vue';
@@ -143,12 +144,6 @@ const hotSkillsLoading = ref(false);
 const levelFilter = ref('all');
 /** 市场部门级联：路径各段对应 `departmentL1`～`departmentL6`（与设计文档 §3.3.3 一致，多字段 AND） */
 const overviewMarketDeptSegments = ref<string[]>([]);
-const overviewDeptCascaderOpen = ref(false);
-const marketDeptCascaderWrapRef = ref<HTMLElement | null>(null);
-const marketDeptCascaderPanelRef = ref<HTMLElement | null>(null);
-/** 级联面板挂到 body + fixed，按触发器靠左且不超出视口，避免撑开页面滚动容器 */
-const marketDeptPanelLayout = ref<{ left: number; top: number; maxWidth: number } | null>(null);
-let deptPanelScrollCleanup: (() => void) | null = null;
 let overviewDimensionPanelCleanup: (() => void) | null = null;
 let overviewDimensionResizeFrame = 0;
 const categoryFilter = ref('all');
@@ -527,30 +522,6 @@ function marketOverviewDeptNodeByPartial(segments: string[]): MarketDeptNode | n
   return cur;
 }
 
-function overviewDeptCascadeOptionsAt(levelIndex: number): string[] {
-  const tree = marketOverviewDeptTree.value;
-  if (tree.length === 0) {
-    return [];
-  }
-  const segs = overviewMarketDeptSegments.value;
-  if (levelIndex > segs.length) {
-    return [];
-  }
-  let nodes = tree;
-  for (let i = 0; i < levelIndex; i++) {
-    const name = segs[i];
-    if (!name) {
-      return [];
-    }
-    const hit = nodes.find((n) => n.name === name);
-    if (!hit) {
-      return [];
-    }
-    nodes = hit.children;
-  }
-  return nodes.map((n) => n.name);
-}
-
 const overviewDeptCascaderLabel = computed(() => {
   const s = overviewMarketDeptSegments.value;
   if (s.length === 0) {
@@ -559,141 +530,29 @@ const overviewDeptCascaderLabel = computed(() => {
   return s.join(' / ');
 });
 
-const overviewDeptCascadeColumns = computed(() => {
-  const tree = marketOverviewDeptTree.value;
-  if (tree.length === 0) {
-    return [] as { levelIndex: number; options: string[]; active: string | undefined }[];
+function resetOverviewDeptFilterFields(): void {
+  for (let level = 3; level <= 8; level += 1) {
+    overviewFilterObj.value[`departmentL${level}`] = '';
   }
-  const segs = overviewMarketDeptSegments.value;
-  const cols: { levelIndex: number; options: string[]; active: string | undefined }[] = [];
-  for (let level = 0; level < 6; level++) {
-    const opts = overviewDeptCascadeOptionsAt(level);
-    if (opts.length === 0) {
-      break;
-    }
-    cols.push({
-      levelIndex: level,
-      options: opts,
-      active: segs[level],
-    });
-  }
-  return cols;
-});
-
-function toggleOverviewDeptCascader(): void {
-  overviewDeptCascaderOpen.value = !overviewDeptCascaderOpen.value;
-  if (overviewDeptCascaderOpen.value) {
-    updateMarketDeptPanelLayout();
-    void nextTick(() => {
-      updateMarketDeptPanelLayout();
-    });
-  }
-}
-
-function marketOverviewDeptPickHasChildren(levelIndex: number, name: string): boolean {
-  const prefix = [...overviewMarketDeptSegments.value.slice(0, levelIndex), name];
-  const n = marketOverviewDeptNodeByPartial(prefix);
-  return Boolean(n && n.children.length > 0);
 }
 
 const clearOverviewDeptCascader = async () => {
-  for (let i in overviewMarketDeptSegments.value) {
-    const num = Number(i) + 3;
-    const deptField = `departmentL${num}`;
-    overviewFilterObj.value[deptField] = '';
-  }
-  await reloadOverviewFirstPageFromUserInput();
+  resetOverviewDeptFilterFields();
+  overviewFilterObj.value.pageNum = 1;
+  page.pageIndex = 1;
   overviewMarketDeptSegments.value = [];
-  overviewDeptCascaderOpen.value = false;
+  await reloadOverviewFirstPageFromUserInput();
 };
 
 const deptFilterOnChange = async () => {
-  for (let i in overviewMarketDeptSegments.value) {
-    const num = Number(i) + 3;
-    const deptField = `departmentL${num}`;
-    overviewFilterObj.value[deptField] = overviewMarketDeptSegments.value[i];
-  }
+  resetOverviewDeptFilterFields();
+  overviewMarketDeptSegments.value.slice(0, 6).forEach((segment, index) => {
+    overviewFilterObj.value[`departmentL${index + 3}`] = segment;
+  });
+  overviewFilterObj.value.pageNum = 1;
+  page.pageIndex = 1;
   await reloadOverviewFirstPageFromUserInput();
-  overviewDeptCascaderOpen.value = false;
 };
-
-function onMarketDeptCascaderDocDown(ev: MouseEvent): void {
-  if (!overviewDeptCascaderOpen.value) {
-    return;
-  }
-  const t = ev.target as Node;
-  const root = marketDeptCascaderWrapRef.value;
-  const panel = marketDeptCascaderPanelRef.value;
-  if (root?.contains(t) || panel?.contains(t)) {
-    return;
-  }
-  overviewDeptCascaderOpen.value = false;
-}
-
-function onMarketDeptCascaderKeydown(ev: KeyboardEvent): void {
-  if (!overviewDeptCascaderOpen.value) {
-    return;
-  }
-  if (ev.key === 'Escape') {
-    overviewDeptCascaderOpen.value = false;
-  }
-}
-
-function updateMarketDeptPanelLayout(): void {
-  if (!overviewDeptCascaderOpen.value) {
-    marketDeptPanelLayout.value = null;
-    return;
-  }
-  const wrap = marketDeptCascaderWrapRef.value;
-  if (!wrap) {
-    marketDeptPanelLayout.value = null;
-    return;
-  }
-  const rect = wrap.getBoundingClientRect();
-  const margin = 16;
-  const fromLeft = Math.max(0, rect.left);
-  const usable = Math.max(220, Math.floor(window.innerWidth - fromLeft - margin));
-  marketDeptPanelLayout.value = {
-    left: Math.floor(fromLeft),
-    top: Math.floor(rect.bottom + 4),
-    maxWidth: Math.min(720, usable),
-  };
-}
-
-const marketDeptCascaderPanelStyle = computed((): CSSProperties => {
-  const L = marketDeptPanelLayout.value;
-  if (!L) {
-    return {};
-  }
-  return {
-    position: 'fixed',
-    left: `${L.left}px`,
-    top: `${L.top}px`,
-    maxWidth: `${L.maxWidth}px`,
-    zIndex: 2400,
-  };
-});
-
-watch(overviewDeptCascaderOpen, (open) => {
-  if (deptPanelScrollCleanup) {
-    deptPanelScrollCleanup();
-    deptPanelScrollCleanup = null;
-  }
-  if (open) {
-    void nextTick(() => {
-      updateMarketDeptPanelLayout();
-    });
-    const onScroll = (): void => {
-      updateMarketDeptPanelLayout();
-    };
-    window.addEventListener('scroll', onScroll, true);
-    deptPanelScrollCleanup = (): void => {
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  } else {
-    marketDeptPanelLayout.value = null;
-  }
-});
 
 watch(overviewDimensionMoreOpen, (open) => {
   if (overviewDimensionPanelCleanup) {
@@ -717,17 +576,6 @@ watch(overviewDimensionMoreOpen, (open) => {
     overviewDimensionDropdownStyle.value = {};
   }
 });
-
-function onOverviewDeptCascadeChange(levelIndex: number, raw: string): void {
-  if (!raw) {
-    overviewMarketDeptSegments.value = overviewMarketDeptSegments.value.slice(0, levelIndex);
-    return;
-  }
-  overviewMarketDeptSegments.value = [
-    ...overviewMarketDeptSegments.value.slice(0, levelIndex),
-    raw,
-  ];
-}
 
 const businessDimensionOptions = computed(() => [...businessDimensions.value]);
 
@@ -923,9 +771,6 @@ const tagOptions = computed(() => {
 
 function toggleOverviewAdvancedPanel(): void {
   overviewAdvancedOpen.value = !overviewAdvancedOpen.value;
-  if (!overviewAdvancedOpen.value) {
-    overviewDeptCascaderOpen.value = false;
-  }
 }
 
 function updateTopbarGlass(): void {
@@ -1086,8 +931,6 @@ onMounted(async () => {
     // await startOverviewRemoteFetch();
     // await loadOpsDashboardOverview();
   }
-  document.addEventListener('mousedown', onMarketDeptCascaderDocDown);
-  document.addEventListener('keydown', onMarketDeptCascaderKeydown);
   document.addEventListener('mousedown', onOverviewDimensionDocDown);
   document.addEventListener('keydown', onOverviewDimensionKeydown);
   window.addEventListener('resize', scheduleOverviewDimensionOverflowCheck);
@@ -1102,16 +945,12 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   closeDeleteConfirm();
   closeDetailDeleteConfirm();
-  deptPanelScrollCleanup?.();
-  deptPanelScrollCleanup = null;
   overviewDimensionPanelCleanup?.();
   overviewDimensionPanelCleanup = null;
   if (businessDimensionPanelCloseTimer) {
     window.clearTimeout(businessDimensionPanelCloseTimer);
     businessDimensionPanelCloseTimer = null;
   }
-  document.removeEventListener('mousedown', onMarketDeptCascaderDocDown);
-  document.removeEventListener('keydown', onMarketDeptCascaderKeydown);
   document.removeEventListener('mousedown', onOverviewDimensionDocDown);
   document.removeEventListener('keydown', onOverviewDimensionKeydown);
   window.removeEventListener('resize', scheduleOverviewDimensionOverflowCheck);
@@ -3930,86 +3769,14 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
         >
           <div class="toolbar-group toolbar-dept-group">
             <span v-if="false" class="toolbar-label">部门</span>
-            <div
-              ref="marketDeptCascaderWrapRef"
-              class="market-dept-cascader all-dept-cascader"
+            <MarketDeptCascader
+              v-model="overviewMarketDeptSegments"
+              class="all-dept-cascader"
+              :tree="marketOverviewDeptTree"
               aria-label="部门级联筛选（departmentL1～L6）"
-            >
-              <button
-                type="button"
-                class="market-dept-cascader-trigger"
-                :class="{ 'is-open': overviewDeptCascaderOpen }"
-                aria-haspopup="true"
-                :aria-expanded="overviewDeptCascaderOpen"
-                @click.stop="toggleOverviewDeptCascader"
-              >
-                <span class="market-dept-cascader-trigger-text" :title="overviewDeptCascaderLabel">
-                  {{ overviewDeptCascaderLabel }}
-                </span>
-                <span class="market-dept-cascader-caret" aria-hidden="true">▾</span>
-              </button>
-              <Teleport to="body">
-                <div
-                  v-if="overviewDeptCascaderOpen"
-                  ref="marketDeptCascaderPanelRef"
-                  class="market-dept-cascader-panel"
-                  :style="marketDeptCascaderPanelStyle"
-                  role="listbox"
-                  @mousedown.prevent
-                >
-                  <div
-                    v-if="overviewDeptCascadeColumns.length === 0"
-                    class="market-dept-cascader-empty"
-                  >
-                    暂无部门数据（可先调整组织/分类或等待列表加载）
-                  </div>
-                  <div v-else class="market-dept-cascader-columns">
-                    <div
-                      v-for="col in overviewDeptCascadeColumns"
-                      :key="'dept-col-' + col.levelIndex"
-                      class="market-dept-cascader-col"
-                      role="presentation"
-                    >
-                      <button
-                        v-for="name in col.options"
-                        :key="col.levelIndex + '-' + name"
-                        type="button"
-                        class="market-dept-cascader-item"
-                        :class="{ 'is-active': col.active === name }"
-                        role="option"
-                        :aria-selected="col.active === name"
-                        @click="onOverviewDeptCascadeChange(col.levelIndex, name)"
-                      >
-                        <span class="market-dept-cascader-item-label">{{ name }}</span>
-                        <span
-                          v-if="marketOverviewDeptPickHasChildren(col.levelIndex, name)"
-                          class="market-dept-cascader-item-chevron"
-                          aria-hidden="true"
-                        >
-                          ›
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="market-dept-cascader-footer">
-                    <button
-                      type="button"
-                      class="market-dept-cascader-clear"
-                      @click="clearOverviewDeptCascader"
-                    >
-                      清空部门
-                    </button>
-                    <button
-                      type="button"
-                      class="market-dept-cascader-done"
-                      @click="deptFilterOnChange"
-                    >
-                      完成
-                    </button>
-                  </div>
-                </div>
-              </Teleport>
-            </div>
+              @clear="clearOverviewDeptCascader"
+              @done="deptFilterOnChange"
+            />
           </div>
 
           <label class="toolbar-group toolbar-level-group">
@@ -5037,7 +4804,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
     </div>
 
     <div v-else-if="innerTab === 'review'" class="tabs-panel overview-panel review-panel">
-      <ReviewCenterPage />
+      <ReviewCenterPage :userId="userId" :department-tree="marketOverviewDeptTree" />
     </div>
 
     <div
@@ -5046,7 +4813,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
       class="panel tab-panel planning-panel"
       :style="tabPanelFillStyle"
     >
-      <SkillPlanningPage />
+      <SkillPlanningPage :department-tree="marketOverviewDeptTree" />
     </div>
 
     <Teleport to="body">

@@ -260,6 +260,61 @@ export const skillBaseService = {
     });
   },
 
+  /*
+  * skill评审相关接口
+  */
+
+  // 判断是否为专家
+  isReviewer: (params: any): any => {
+    return httpRequest.skill<any>({
+      url: '/review/expert/check',
+      method: 'get',
+      params,
+    });
+  },
+
+  // 获取评审的Skill列表
+  getSkillReviewList: (params: any): any => {
+    return httpRequest.skill<any>({
+      url: '/review/list',
+      method: 'get',
+      params,
+    });
+  },
+
+  // 获取评审详情
+  getSkillReviewDetail: (skillId: string, params: any): any => {
+    return httpRequest.skill<any>({
+      url: `/review/${skillId}/detail`,
+      method: 'get',
+      params,
+    });
+  },
+
+  // 获取专家评审维度
+  getExpertReviewDimension: (): any => {
+    return httpRequest.skill<any>({
+      url: `/review/dimensions`,
+      method: 'get',
+    });
+  },
+
+  // 获取AI评审维度
+  getAIReviewDimension: (): any => {
+    return httpRequest.skill<any>({
+      url: `/review/ai-dimensions`,
+      method: 'get',
+    });
+  },
+
+  // 获取勋章列表
+  getReviewBadges: (): any => {
+    return httpRequest.skill<any>({
+      url: `/review/badges`,
+      method: 'get',
+    });
+  },
+
   // 质量评审列表查询接口
   queryQualityReviewList: (params: any): any => {
     return httpRequest.api<any>({

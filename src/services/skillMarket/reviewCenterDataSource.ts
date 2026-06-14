@@ -6,6 +6,7 @@ import type {
   ReviewRankingCard,
   ReviewTaskCard,
 } from './mock/reviewCenterData';
+import { skillBaseService } from './skillBaseService';
 
 export type {
   ComputeChannelRow,
@@ -72,7 +73,19 @@ function createMockReviewCenterData(mockData: ReviewCenterMockModule): ReviewCen
   };
 }
 
-function createEmptyReviewCenterData(): ReviewCenterData {
+async function loadHttpReviewCenterData(userId: string, listParams: any): Promise<ReviewCenterData> {
+  let isExpertReviewer = false
+  await skillBaseService.isReviewer({userId: userId}).then((res: any) => {
+    if(res?.meta?.success && res?.data) {
+      isExpertReviewer = res.data.isExpert
+    }
+  })
+  if (isExpertReviewer) {
+    await skillBaseService.getSkillReviewList(listParams)
+  }
+
+
+  // TODO: 后端接口确定后，在 skillBaseService 中补齐评审页查询方法，并在这里组装真实响应数据。
   return {
     rankingCards: [],
     taskCards: [],
@@ -89,23 +102,18 @@ function createEmptyReviewCenterData(): ReviewCenterData {
   };
 }
 
-async function loadHttpReviewCenterData(): Promise<ReviewCenterData> {
-  // TODO: 后端接口确定后，在 skillBaseService 中补齐评审页查询方法，并在这里组装真实响应数据。
-  return createEmptyReviewCenterData();
-}
-
 async function loadMockReviewCenterData(): Promise<ReviewCenterData> {
   const mockData = await import('./mock/reviewCenterData');
   return createMockReviewCenterData(mockData);
 }
 
-export async function loadReviewCenterData(): Promise<ReviewCenterData> {
+export async function loadReviewCenterData(userId: string, listParams: any): Promise<ReviewCenterData> {
   const transport = String(import.meta.env.VITE_SKILL_MARKET_TRANSPORT ?? 'mock')
     .trim()
     .toLowerCase();
 
   if (transport === 'http') {
-    return loadHttpReviewCenterData();
+    return loadHttpReviewCenterData(userId, listParams);
   }
 
   return loadMockReviewCenterData();
