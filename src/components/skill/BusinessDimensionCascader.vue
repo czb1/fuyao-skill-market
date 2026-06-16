@@ -4,12 +4,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import type { BusinessDimensionDto } from '../../services/skillMarket/apiTypes';
 import { skillBaseService } from '../../services/skillMarket/skillBaseService';
 
-type BusinessDimensionOption = {
-  id: string;
-  name: string;
-  children: BusinessDimensionOption[];
-};
-
 type BusinessDimensionSelection = {
   category: string;
   dimensionId: string;
@@ -17,16 +11,6 @@ type BusinessDimensionSelection = {
   categoryId: string;
   categoryName: string;
   level: 0 | 1 | 2;
-};
-
-type RawBusinessDimension = BusinessDimensionDto & {
-  id?: string | number;
-  dimensionName?: string;
-  category?: string;
-  code?: string;
-  label?: string;
-  title?: string;
-  value?: string | number;
 };
 
 const props = withDefaults(
@@ -59,146 +43,63 @@ const emit = defineEmits<{
   change: [selection: BusinessDimensionSelection];
 }>();
 
-const dimensions = ref<BusinessDimensionOption[]>([]);
-const loading = ref(false);
-const selectedDimensionId = ref('');
-const selectedCategoryId = ref('');
+const businessDimensions = ref<BusinessDimensionDto[]>([]);
+const businessDimensionLoading = ref(false);
+const selectedBusinessDimension = ref(props.dimensionLabel || props.defaultDimensionName);
+const selectedBusinessCategory = ref('');
 
-const selectedDimension = computed(
-  () => dimensions.value.find((dimension) => dimension.id === selectedDimensionId.value) ?? null,
-);
+const businessDimensionOptions = computed(() => [...businessDimensions.value]);
 
-const selectedCategoryOptions = computed(() => selectedDimension.value?.children ?? []);
-
-const selectedCategory = computed(
+const selectedBusinessDimensionItem = computed(
   () =>
-    selectedCategoryOptions.value.find((category) => category.id === selectedCategoryId.value) ??
-    null,
+    businessDimensionOptions.value.find(
+      (item) => item.categoryName === selectedBusinessDimension.value,
+    ) ?? null,
 );
 
-function normalizeDimension(item: BusinessDimensionDto): BusinessDimensionOption | null {
-  const raw = item as RawBusinessDimension;
-  const rawId = raw.categoryId ?? raw.id ?? raw.value ?? raw.dimensionCode ?? raw.code;
-  const id = rawId === undefined || rawId === null ? '' : String(rawId).trim();
-  const name = String(
-    raw.categoryName ??
-      raw.dimensionName ??
-      raw.name ??
-      raw.label ??
-      raw.title ??
-      raw.category ??
-      '',
-  ).trim();
-
-  if (!id || !name) {
-    return null;
-  }
-
-  const children = Array.isArray(raw.children)
-    ? raw.children
-        .map(normalizeDimension)
-        .filter((child): child is BusinessDimensionOption => Boolean(child))
-    : [];
-
-  return {
-    id,
-    name,
-    children,
-  };
+function businessDimensionChildren(
+  dimension: BusinessDimensionDto | null | undefined,
+): BusinessDimensionDto[] {
+  return [...(dimension?.children ?? [])];
 }
 
-function isDimensionLike(value: unknown): boolean {
-  if (!value || typeof value !== 'object') {
-    return false;
+const selectedBusinessCategoryOptions = computed(() =>
+  businessDimensionChildren(selectedBusinessDimensionItem.value),
+);
+
+const selectedBusinessCategoryItem = computed(
+  () =>
+    selectedBusinessCategoryOptions.value.find(
+      (item) => String(item.categoryId) === selectedBusinessCategory.value,
+    ) ?? null,
+);
+
+const selectedBusinessCategoryParam = computed(() => {
+  if (selectedBusinessCategory.value) {
+    return selectedBusinessCategory.value;
   }
-
-  return Boolean(normalizeDimension(value as BusinessDimensionDto));
-}
-
-function readRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
-
-function readDimensionRows(raw: unknown): BusinessDimensionDto[] {
-  if (Array.isArray(raw)) {
-    return raw.some(isDimensionLike) ? (raw as BusinessDimensionDto[]) : [];
-  }
-
-  if (!raw || typeof raw !== 'object') {
-    return [];
-  }
-
-  const record = readRecord(raw);
-  if (isDimensionLike(record)) {
-    return [record as BusinessDimensionDto];
-  }
-
-  const directKeys = [
-    'data',
-    'list',
-    'records',
-    'categoryStats',
-    'categories',
-    'categoryList',
-    'categoryTree',
-    'businessDimensions',
-    'dimensions',
-    'children',
-  ];
-
-  for (const key of directKeys) {
-    const rows = readDimensionRows(record[key]);
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  for (const value of Object.values(record)) {
-    const rows = readDimensionRows(value);
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  return [];
-}
-
-function serviceSucceeded(value: unknown): boolean {
-  if (Array.isArray(value)) {
-    return true;
-  }
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-
-  const record = readRecord(value);
-  const meta = readRecord(record.meta);
-  if (typeof meta?.success === 'boolean') {
-    return meta.success;
-  }
-  if (record.success === false) {
-    return false;
-  }
-  const code = record.code;
-  return code === undefined || code === 0 || code === 200 || code === '0' || code === '200';
-}
-
-function currentSelection(): BusinessDimensionSelection {
-  const dimension = selectedDimension.value;
-  const category = selectedCategory.value;
-
-  return {
-    category: category?.id ?? dimension?.id ?? '',
-    dimensionId: dimension?.id ?? '',
-    dimensionName: dimension?.name ?? '',
-    categoryId: category?.id ?? '',
-    categoryName: category?.name ?? '',
-    level: category ? 2 : dimension ? 1 : 0,
-  };
-}
+  const dimensionId = selectedBusinessDimensionItem.value?.categoryId;
+  return dimensionId !== undefined && dimensionId !== null ? String(dimensionId) : '';
+});
 
 function emitSelection(emitChange: boolean): void {
-  const selection = currentSelection();
+  const dimension = selectedBusinessDimensionItem.value;
+  const category = selectedBusinessCategoryItem.value;
+  const selection: BusinessDimensionSelection = {
+    category: selectedBusinessCategoryParam.value,
+    dimensionId:
+      dimension?.categoryId !== undefined && dimension.categoryId !== null
+        ? String(dimension.categoryId)
+        : '',
+    dimensionName: dimension?.categoryName ?? '',
+    categoryId:
+      category?.categoryId !== undefined && category.categoryId !== null
+        ? String(category.categoryId)
+        : '',
+    categoryName: category?.categoryName ?? '',
+    level: category ? 2 : dimension ? 1 : 0,
+  };
+
   emit('update:modelValue', selection.category);
   emit('update:dimensionLabel', selection.dimensionName);
   emit('update:categoryLabel', selection.categoryName);
@@ -208,76 +109,67 @@ function emitSelection(emitChange: boolean): void {
   }
 }
 
-function findByCategory(category: string): { dimensionId: string; categoryId: string } | null {
-  const target = category.trim();
-  if (!target) {
-    return null;
-  }
-
-  for (const dimension of dimensions.value) {
-    if (dimension.id === target) {
-      return { dimensionId: dimension.id, categoryId: '' };
-    }
-
-    const child = dimension.children.find((item) => item.id === target);
-    if (child) {
-      return { dimensionId: dimension.id, categoryId: child.id };
-    }
-  }
-
-  return null;
-}
-
-function selectDefaultDimension(): void {
-  const fallback =
-    dimensions.value.find((item) => item.name === props.defaultDimensionName) ??
-    dimensions.value[0] ??
-    null;
-
-  selectedDimensionId.value = fallback?.id ?? '';
-  selectedCategoryId.value = '';
-}
-
-function syncFromModelValue(): void {
-  const matched = findByCategory(String(props.modelValue ?? ''));
-  if (matched) {
-    selectedDimensionId.value = matched.dimensionId;
-    selectedCategoryId.value = matched.categoryId;
+function syncSelectedBusinessDimension(): void {
+  const options = businessDimensionOptions.value;
+  if (options.length === 0) {
+    selectedBusinessDimension.value = selectedBusinessDimension.value || props.defaultDimensionName;
     return;
   }
 
-  if (
-    !selectedDimensionId.value ||
-    !dimensions.value.some((item) => item.id === selectedDimensionId.value)
-  ) {
-    selectDefaultDimension();
+  const modelValue = String(props.modelValue ?? '').trim();
+  if (modelValue) {
+    for (const dimension of options) {
+      if (String(dimension.categoryId) === modelValue) {
+        selectedBusinessDimension.value = dimension.categoryName ?? props.defaultDimensionName;
+        selectedBusinessCategory.value = '';
+        return;
+      }
+
+      const child = businessDimensionChildren(dimension).find(
+        (item) => String(item.categoryId) === modelValue,
+      );
+      if (child) {
+        selectedBusinessDimension.value = dimension.categoryName ?? props.defaultDimensionName;
+        selectedBusinessCategory.value = String(child.categoryId);
+        return;
+      }
+    }
   }
+
+  const current = selectedBusinessDimension.value;
+  if (options.some((item) => item.categoryName === current)) {
+    return;
+  }
+
+  selectedBusinessDimension.value =
+    options.find((item) => item.categoryName === props.defaultDimensionName)?.categoryName ??
+    options[0]?.categoryName ??
+    props.defaultDimensionName;
+  selectedBusinessCategory.value = '';
 }
 
 async function loadBusinessDimensions(): Promise<void> {
-  if (loading.value || dimensions.value.length > 0) {
-    syncFromModelValue();
+  if (businessDimensionLoading.value || businessDimensions.value.length > 0) {
+    syncSelectedBusinessDimension();
     emitSelection(false);
     return;
   }
 
-  loading.value = true;
+  businessDimensionLoading.value = true;
   try {
     const env = await skillBaseService.queryBusinessDimensions({ format: 'tree' });
-    if (serviceSucceeded(env)) {
-      dimensions.value = readDimensionRows((env as Record<string, unknown>).data)
-        .map(normalizeDimension)
-        .filter((item): item is BusinessDimensionOption => Boolean(item));
+    if (env?.meta?.success && env?.data) {
+      businessDimensions.value = env.data;
     }
   } finally {
-    loading.value = false;
-    syncFromModelValue();
+    businessDimensionLoading.value = false;
+    syncSelectedBusinessDimension();
     emitSelection(false);
   }
 }
 
 function onDimensionChange(): void {
-  selectedCategoryId.value = '';
+  selectedBusinessCategory.value = '';
   emitSelection(true);
 }
 
@@ -285,19 +177,28 @@ function onCategoryChange(): void {
   emitSelection(true);
 }
 
-function clearCategory(): void {
-  selectedCategoryId.value = '';
+function clearBusinessCategory(): void {
+  selectedBusinessCategory.value = '';
   emitSelection(true);
 }
+
+watch(selectedBusinessCategoryOptions, (options) => {
+  if (!selectedBusinessCategory.value) {
+    return;
+  }
+  if (!options.some((item) => String(item.categoryId) === selectedBusinessCategory.value)) {
+    selectedBusinessCategory.value = '';
+    emitSelection(false);
+  }
+});
 
 watch(
   () => props.modelValue,
   (value) => {
-    const current = currentSelection().category;
-    if (String(value ?? '') === current) {
+    if (String(value ?? '') === selectedBusinessCategoryParam.value) {
       return;
     }
-    syncFromModelValue();
+    syncSelectedBusinessDimension();
     emitSelection(false);
   },
 );
@@ -312,50 +213,53 @@ onMounted(() => {
     <div class="business-dimension-cascader__group">
       <select
         :id="firstSelectId"
-        v-model="selectedDimensionId"
+        v-model="selectedBusinessDimension"
         class="business-dimension-cascader__select"
-        :disabled="disabled || loading || dimensions.length === 0"
+        :disabled="disabled || businessDimensionLoading || businessDimensionOptions.length === 0"
         :aria-label="`${ariaLabelPrefix}一级`"
         @change="onDimensionChange"
       >
-        <option v-if="dimensions.length === 0" value="">
-          {{ loading ? '加载中...' : '暂无业务维度' }}
+        <option v-if="businessDimensionOptions.length === 0" value="">
+          {{ businessDimensionLoading ? '加载中...' : '暂无业务维度' }}
         </option>
-        <option v-for="dimension in dimensions" :key="dimension.id" :value="dimension.id">
-          {{ dimension.name }}
+        <option
+          v-for="dimension in businessDimensionOptions"
+          :key="dimension.categoryId"
+          :value="dimension.categoryName"
+        >
+          {{ dimension.categoryName }}
         </option>
       </select>
 
       <div
         class="business-dimension-cascader__category"
-        :class="{ 'has-clear': selectedCategoryId }"
+        :class="{ 'has-clear': selectedBusinessCategory }"
       >
         <select
           :id="secondSelectId"
-          v-model="selectedCategoryId"
+          v-model="selectedBusinessCategory"
           class="business-dimension-cascader__select"
-          :disabled="disabled || selectedCategoryOptions.length === 0"
+          :disabled="disabled || selectedBusinessCategoryOptions.length === 0"
           :aria-label="`${ariaLabelPrefix}二级`"
           @change="onCategoryChange"
         >
+          <option value="" disabled hidden>请选择二级</option>
           <option
-            v-for="category in selectedCategoryOptions"
-            :key="category.id"
-            :value="category.id"
+            v-for="category in selectedBusinessCategoryOptions"
+            :key="category.categoryId"
+            :value="String(category.categoryId)"
           >
-            {{ category.name }}
+            {{ category.categoryName }}
           </option>
         </select>
         <button
-          v-if="selectedCategoryId"
+          v-if="selectedBusinessCategory"
           type="button"
           class="business-dimension-cascader__clear"
           :aria-label="`清空${ariaLabelPrefix}二级`"
           :title="`清空${ariaLabelPrefix}二级`"
           :disabled="disabled"
-          @pointerdown.prevent.stop
-          @mousedown.prevent.stop
-          @click.prevent.stop="clearCategory"
+          @click.stop.prevent="clearBusinessCategory"
         >
           ×
         </button>
@@ -407,21 +311,21 @@ onMounted(() => {
 }
 
 .business-dimension-cascader__category {
-  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   min-width: 0;
 }
 
-.business-dimension-cascader__category.has-clear .business-dimension-cascader__select {
-  padding-right: 58px;
+.business-dimension-cascader__category.has-clear {
+  grid-template-columns: minmax(0, 1fr) 28px;
 }
 
 .business-dimension-cascader__clear {
-  position: absolute;
-  top: 50%;
-  right: 34px;
   display: grid;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   place-items: center;
   padding: 0;
   border: 0;
@@ -432,7 +336,6 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 850;
   line-height: 1;
-  transform: translateY(-50%);
 }
 
 .business-dimension-cascader__clear:hover:not(:disabled) {
