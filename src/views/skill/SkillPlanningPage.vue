@@ -823,8 +823,12 @@ onBeforeUnmount(() => {
             <template v-if="hasActivePlanningHeaderFilters || plannedFinishSortOrder">
               ·
               <template v-if="hasActivePlanningHeaderFilters">表头筛选已生效</template>
-              <template v-if="hasActivePlanningHeaderFilters && plannedFinishSortOrder"> · </template>
-              <template v-if="plannedFinishSortOrder">完成时间{{ plannedFinishSortLabel }}</template>
+              <template v-if="hasActivePlanningHeaderFilters && plannedFinishSortOrder">
+                ·
+              </template>
+              <template v-if="plannedFinishSortOrder"
+                >完成时间{{ plannedFinishSortLabel }}</template
+              >
             </template>
           </span>
         </div>
@@ -923,7 +927,10 @@ onBeforeUnmount(() => {
                         清空
                       </button>
                     </div>
-                    <div v-if="headerFilterOptionList('primaryScene').length" class="planning-th-filter__options">
+                    <div
+                      v-if="headerFilterOptionList('primaryScene').length"
+                      class="planning-th-filter__options"
+                    >
                       <label
                         v-for="item in headerFilterOptionList('primaryScene')"
                         :key="`primaryScene-${item}`"
@@ -1010,7 +1017,10 @@ onBeforeUnmount(() => {
                     @click.stop="toggleHeaderFilterMenu('activity')"
                   >
                     <span>归属活动</span>
-                    <span v-if="headerFilterSelectedCount('activity')" class="planning-th-filter__count">
+                    <span
+                      v-if="headerFilterSelectedCount('activity')"
+                      class="planning-th-filter__count"
+                    >
                       {{ headerFilterSelectedCount('activity') }}
                     </span>
                     <span class="planning-th-filter__caret" aria-hidden="true"></span>
@@ -1027,7 +1037,10 @@ onBeforeUnmount(() => {
                         清空
                       </button>
                     </div>
-                    <div v-if="headerFilterOptionList('activity').length" class="planning-th-filter__options">
+                    <div
+                      v-if="headerFilterOptionList('activity').length"
+                      class="planning-th-filter__options"
+                    >
                       <label
                         v-for="item in headerFilterOptionList('activity')"
                         :key="`activity-${item}`"
@@ -1116,7 +1129,10 @@ onBeforeUnmount(() => {
                     @click.stop="toggleHeaderFilterMenu('level')"
                   >
                     <span>层级</span>
-                    <span v-if="headerFilterSelectedCount('level')" class="planning-th-filter__count">
+                    <span
+                      v-if="headerFilterSelectedCount('level')"
+                      class="planning-th-filter__count"
+                    >
                       {{ headerFilterSelectedCount('level') }}
                     </span>
                     <span class="planning-th-filter__caret" aria-hidden="true"></span>
@@ -1133,7 +1149,10 @@ onBeforeUnmount(() => {
                         清空
                       </button>
                     </div>
-                    <div v-if="headerFilterOptionList('level').length" class="planning-th-filter__options">
+                    <div
+                      v-if="headerFilterOptionList('level').length"
+                      class="planning-th-filter__options"
+                    >
                       <label
                         v-for="item in headerFilterOptionList('level')"
                         :key="`level-${item}`"
@@ -1206,7 +1225,10 @@ onBeforeUnmount(() => {
                         清空
                       </button>
                     </div>
-                    <div v-if="headerFilterOptionList('progress').length" class="planning-th-filter__options">
+                    <div
+                      v-if="headerFilterOptionList('progress').length"
+                      class="planning-th-filter__options"
+                    >
                       <label
                         v-for="item in headerFilterOptionList('progress')"
                         :key="`progress-${item}`"

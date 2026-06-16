@@ -215,7 +215,9 @@ function formatFixedTwo(value: number): string {
 
 function formatScoreInput(value: number): string {
   const rounded = roundToTwo(value);
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function formatWeightPercent(weight: number): string {
@@ -262,9 +264,7 @@ function buildExpertDimensionForms(
   dimensions: ExpertReviewDimensionDto[],
   detail?: SkillExpertReviewDetailDto | null,
 ): ExpertDimensionFormState[] {
-  const scoreMap = new Map(
-    (detail?.dimensionScores ?? []).map((item) => [item.dimensionId, item]),
-  );
+  const scoreMap = new Map((detail?.dimensionScores ?? []).map((item) => [item.dimensionId, item]));
 
   return dimensions.map((dimension) => {
     const item = scoreMap.get(dimension.dimensionId);
@@ -288,7 +288,10 @@ function applyExpertReviewDetail(detail?: SkillExpertReviewDetailDto | null): vo
   selectedReviewBadgeReasonError.value = '';
   expertOverallOpinion.value = String(detail?.overallOpinion ?? '');
   expertOverallOpinionError.value = '';
-  replaceReactiveArray(expertDimensionForms, buildExpertDimensionForms(expertReviewDimensions.value, detail));
+  replaceReactiveArray(
+    expertDimensionForms,
+    buildExpertDimensionForms(expertReviewDimensions.value, detail),
+  );
 
   const task = activeTask.value;
   if (task && detail?.reviewStatus === 'submitted' && typeof detail.totalScore === 'number') {
@@ -553,7 +556,9 @@ const expertReviewTotalScore = computed(() => {
 });
 
 const expertReviewTotalScoreText = computed(() => {
-  return expertReviewTotalScore.value == null ? '待评' : formatFixedTwo(expertReviewTotalScore.value);
+  return expertReviewTotalScore.value == null
+    ? '待评'
+    : formatFixedTwo(expertReviewTotalScore.value);
 });
 
 const expertReviewStatusText = computed(() => {
@@ -567,7 +572,9 @@ const expertReviewStatusText = computed(() => {
 });
 
 function currentTaskReviewId(): string {
-  return expertReviewId.value || (activeTask.value?.skillId ? `review-${activeTask.value.skillId}` : '');
+  return (
+    expertReviewId.value || (activeTask.value?.skillId ? `review-${activeTask.value.skillId}` : '')
+  );
 }
 
 function onExpertDimensionScoreInput(dimensionId: string, event: Event): void {
@@ -679,21 +686,21 @@ function validateExpertReviewSubmission(): boolean {
 }
 
 function buildExpertReviewSubmitPayload() {
-  const totalScore = expertReviewTotalScore.value ?? 0;
   const badgeIds = [...selectedReviewBadgeIds.value];
   const badgeReason = badgeIds.length > 0 ? selectedReviewBadgeReason.value.trim() : '';
-  const overallOpinion = expertOverallOpinion.value.trim();
   return {
-    reviewId: currentTaskReviewId(),
-    totalScore,
-    dimensionScores: expertDimensionForms.map((dimension) => ({
+    userId: props.userId,
+    version: '0.0.1', // 暂时先写死
+    dimensions: expertDimensionForms.map((dimension) => ({
       dimensionId: dimension.dimensionId,
       score: parseReviewScore(dimension.scoreText) ?? 0,
-      reason: dimension.reason.trim(),
+      comment: dimension.reason.trim(),
     })),
-    badgeIds,
-    ...(badgeReason ? { badgeReason } : {}),
-    overallOpinion,
+    reviewComment: expertOverallOpinion.value.trim(),
+    badges: {
+      badgeIds,
+      reason: badgeReason,
+    },
   };
 }
 
@@ -709,7 +716,9 @@ function prependExpertReviewHistory(detail: SkillExpertReviewDetailDto): void {
     summaryParts.push(`勋章推荐：${badgeNames.join('、')}；理由：${detail.badgeReason.trim()}`);
   }
   if (summaryParts.length === 0) {
-    summaryParts.push(...expertDimensionForms.map((dimension) => `${dimension.name}：${dimension.reason.trim()}`));
+    summaryParts.push(
+      ...expertDimensionForms.map((dimension) => `${dimension.name}：${dimension.reason.trim()}`),
+    );
   }
   const scores = expertDimensionForms.map((dimension) => ({
     dimension: dimension.name,
@@ -763,29 +772,28 @@ async function selectTask(taskId: string) {
 }
 
 async function saveExpertReviewDraft(): Promise<void> {
-  if (!activeTask.value || expertReviewLoading.value || expertReviewSaving.value) {
-    return;
-  }
-
-  expertReviewSaving.value = true;
-  resetExpertReviewErrors();
-  try {
-    const response = await skillBaseService.saveExpertReviewDraft(
-      activeTask.value.skillId,
-      buildExpertReviewDraftPayload(),
-    );
-    if (!serviceSucceeded(response) || !response?.data) {
-      showToast(serviceMessage(response, '草稿保存失败'));
-      return;
-    }
-    selectedSkillDetail.value = response.data;
-    applyExpertReviewDetail(response.data as SkillExpertReviewDetailDto);
-    showToast('已保存草稿');
-  } catch (e) {
-    showToast(e instanceof Error ? e.message : '草稿保存失败');
-  } finally {
-    expertReviewSaving.value = false;
-  }
+  // if (!activeTask.value || expertReviewLoading.value || expertReviewSaving.value) {
+  //   return;
+  // }
+  // expertReviewSaving.value = true;
+  // resetExpertReviewErrors();
+  // try {
+  //   const response = await skillBaseService.saveExpertReviewDraft(
+  //     activeTask.value.skillId,
+  //     buildExpertReviewDraftPayload(),
+  //   );
+  //   if (!serviceSucceeded(response) || !response?.data) {
+  //     showToast(serviceMessage(response, '草稿保存失败'));
+  //     return;
+  //   }
+  //   selectedSkillDetail.value = response.data;
+  //   applyExpertReviewDetail(response.data as SkillExpertReviewDetailDto);
+  //   showToast('已保存草稿');
+  // } catch (e) {
+  //   showToast(e instanceof Error ? e.message : '草稿保存失败');
+  // } finally {
+  //   expertReviewSaving.value = false;
+  // }
 }
 
 async function submitExpertReview(): Promise<void> {
@@ -1478,6 +1486,7 @@ onBeforeUnmount(() => {
                   </button>
                   <button type="button" @click="isHistoryModalOpen = true">历史评审记录</button>
                   <button
+                    v-if="false"
                     type="button"
                     class="expert-review__action-btn--draft"
                     :disabled="expertReviewLoading || expertReviewSaving"

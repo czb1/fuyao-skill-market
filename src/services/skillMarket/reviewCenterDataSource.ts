@@ -154,7 +154,9 @@ export async function loadReviewCenterData(
     .toLowerCase();
 
   if (transport === 'http') {
-    return isExperReviewer ? loadHttpReviewCenterData(listParams) : loadMockReviewCenterData(listParams);
+    return isExperReviewer
+      ? loadHttpReviewCenterData(listParams)
+      : loadMockReviewCenterData(listParams);
   }
 
   return loadMockReviewCenterData(listParams);

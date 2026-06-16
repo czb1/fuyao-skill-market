@@ -497,7 +497,9 @@ function ensureExpertReviewDetail(skillId: string): MockSkillReviewDetail {
     reviewStatus: submitted ? 'submitted' : drafted ? 'draft' : 'pending',
     totalScore: computeWeightedTotal(dimensionScores),
     dimensionScores,
-    badgeIds: submitted ? [MOCK_REVIEW_BADGES[seed % MOCK_REVIEW_BADGES.length]?.badgeId ?? ''] : [],
+    badgeIds: submitted
+      ? [MOCK_REVIEW_BADGES[seed % MOCK_REVIEW_BADGES.length]?.badgeId ?? '']
+      : [],
     badgeReason: '',
     overallOpinion: '',
     updatedAt: nowText(),
