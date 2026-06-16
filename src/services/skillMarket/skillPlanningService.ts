@@ -1,6 +1,8 @@
 import * as XLSX from 'xlsx';
 
 export type SkillPlanningProgress = '未开始' | '开发中' | '联调中' | '已完成' | '已延期';
+export type SkillPlanningSortField = 'plannedFinishDate';
+export type SkillPlanningSortOrder = 'asc' | 'desc';
 
 export interface SkillPlanningItem {
   id: string;
@@ -27,15 +29,23 @@ export interface SkillPlanningQuery {
   DepartmentL5?: string;
   DepartmentL6?: string;
   primaryScene?: string;
+  primaryScenes?: string[];
   secondaryScene?: string;
+  secondaryScenes?: string[];
   activity?: string;
+  activities?: string[];
   subActivity?: string;
+  subActivities?: string[];
   level?: string;
+  levels?: string[];
   progress?: string;
+  progresses?: string[];
   owner?: string;
   plannedStartDate?: string;
   plannedEndDate?: string;
   keyword?: string;
+  sortBy?: SkillPlanningSortField;
+  sortOrder?: SkillPlanningSortOrder;
   page?: number;
   pageSize?: number;
 }
@@ -43,6 +53,15 @@ export interface SkillPlanningQuery {
 export interface SkillPlanningListResult {
   list: SkillPlanningItem[];
   total: number;
+}
+
+export interface SkillPlanningFilterOptions {
+  primaryScene: string[];
+  secondaryScene: string[];
+  activity: string[];
+  subActivity: string[];
+  level: string[];
+  progress: string[];
 }
 
 export interface SkillPlanningImportResult {
@@ -230,6 +249,14 @@ function normalizeProgress(value: unknown): SkillPlanningProgress {
   return '未开始';
 }
 
+function normalizeTextArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(value.map((item) => normalizeText(item)).filter(Boolean))];
+}
+
 function cloneItem(item: SkillPlanningItem): SkillPlanningItem {
   return { ...item };
 }
@@ -245,8 +272,43 @@ function matchesDateRange(item: SkillPlanningItem, query: SkillPlanningQuery): b
   return true;
 }
 
+function matchesDiscreteFilter(value: string, singleValue: string, multiValues: string[]): boolean {
+  if (singleValue && value !== singleValue) {
+    return false;
+  }
+
+  if (multiValues.length > 0 && !multiValues.includes(value)) {
+    return false;
+  }
+
+  return true;
+}
+
+function sortItems(items: SkillPlanningItem[], query: SkillPlanningQuery): SkillPlanningItem[] {
+  if (query.sortBy !== 'plannedFinishDate' || !query.sortOrder) {
+    return items;
+  }
+
+  const sorted = [...items];
+  sorted.sort((left, right) => {
+    const result = left.plannedFinishDate.localeCompare(right.plannedFinishDate);
+    return query.sortOrder === 'asc' ? result : -result;
+  });
+  return sorted;
+}
+
+function distinctValuesInOrder(values: string[]): string[] {
+  return [...new Set(values.map((value) => normalizeText(value)).filter(Boolean))];
+}
+
 function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
   const keyword = normalizeText(query.keyword).toLowerCase();
+  const primaryScenes = normalizeTextArray(query.primaryScenes);
+  const secondaryScenes = normalizeTextArray(query.secondaryScenes);
+  const activities = normalizeTextArray(query.activities);
+  const subActivities = normalizeTextArray(query.subActivities);
+  const levels = normalizeTextArray(query.levels);
+  const progresses = normalizeTextArray(query.progresses);
   const department =
     normalizeText(query.department) ||
     [
@@ -260,16 +322,23 @@ function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
       .map(normalizeText)
       .find(Boolean) ||
     '';
+  const primaryScene = normalizeText(query.primaryScene);
+  const secondaryScene = normalizeText(query.secondaryScene);
+  const activity = normalizeText(query.activity);
+  const subActivity = normalizeText(query.subActivity);
+  const level = normalizeText(query.level);
+  const progress = normalizeText(query.progress);
+  const owner = normalizeText(query.owner);
 
   return skillPlanningItems.filter((item) => {
     if (department && item.department !== department) return false;
-    if (query.primaryScene && item.primaryScene !== query.primaryScene) return false;
-    if (query.secondaryScene && item.secondaryScene !== query.secondaryScene) return false;
-    if (query.activity && item.activity !== query.activity) return false;
-    if (query.subActivity && item.subActivity !== query.subActivity) return false;
-    if (query.level && item.level !== query.level) return false;
-    if (query.progress && item.progress !== query.progress) return false;
-    if (query.owner && !item.owner.includes(query.owner)) return false;
+    if (!matchesDiscreteFilter(item.primaryScene, primaryScene, primaryScenes)) return false;
+    if (!matchesDiscreteFilter(item.secondaryScene, secondaryScene, secondaryScenes)) return false;
+    if (!matchesDiscreteFilter(item.activity, activity, activities)) return false;
+    if (!matchesDiscreteFilter(item.subActivity, subActivity, subActivities)) return false;
+    if (!matchesDiscreteFilter(item.level, level, levels)) return false;
+    if (!matchesDiscreteFilter(item.progress, progress, progresses)) return false;
+    if (owner && !item.owner.includes(owner)) return false;
     if (!matchesDateRange(item, query)) return false;
     if (!keyword) return true;
 
@@ -325,12 +394,23 @@ function itemToExportRow(item: SkillPlanningItem): Record<string, string> {
   };
 }
 
+export async function querySkillPlanningFilterOptions(): Promise<SkillPlanningFilterOptions> {
+  return {
+    primaryScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.primaryScene)),
+    secondaryScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.secondaryScene)),
+    activity: distinctValuesInOrder(skillPlanningItems.map((item) => item.activity)),
+    subActivity: distinctValuesInOrder(skillPlanningItems.map((item) => item.subActivity)),
+    level: distinctValuesInOrder(skillPlanningItems.map((item) => item.level)),
+    progress: distinctValuesInOrder(skillPlanningItems.map((item) => item.progress)),
+  };
+}
+
 export async function querySkillPlanningList(
   query: SkillPlanningQuery = {},
 ): Promise<SkillPlanningListResult> {
   const page = Math.max(1, Number(query.page ?? 1));
   const pageSize = Math.max(1, Number(query.pageSize ?? 10));
-  const filtered = filterItems(query);
+  const filtered = sortItems(filterItems(query), query);
   const start = (page - 1) * pageSize;
 
   return {
@@ -342,7 +422,7 @@ export async function querySkillPlanningList(
 export async function queryAllSkillPlanningList(
   query: SkillPlanningQuery = {},
 ): Promise<SkillPlanningItem[]> {
-  return filterItems(query).map(cloneItem);
+  return sortItems(filterItems(query), query).map(cloneItem);
 }
 
 export async function createSkillPlanning(

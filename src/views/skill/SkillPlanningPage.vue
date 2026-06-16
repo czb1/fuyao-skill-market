@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import MarketDeptCascader from '../../components/skill/MarketDeptCascader.vue';
 import {
   batchDeleteSkillPlanning,
@@ -8,14 +8,17 @@ import {
   deleteSkillPlanning,
   exportSkillPlanningToExcel,
   importSkillPlanningFromExcel,
+  querySkillPlanningFilterOptions,
   queryAllSkillPlanningList,
   querySkillPlanningList,
   updateSkillPlanning,
   type SkillPlanningBatchPatch,
+  type SkillPlanningFilterOptions,
   type SkillPlanningItem,
   type SkillPlanningPayload,
   type SkillPlanningProgress,
   type SkillPlanningQuery,
+  type SkillPlanningSortOrder,
 } from '../../services/skillMarket/skillPlanningService';
 
 type PlanningFormMode = 'create' | 'edit';
@@ -23,6 +26,14 @@ type PlanningDepartmentTreeNode = {
   name: string;
   children?: PlanningDepartmentTreeNode[];
 };
+type PlanningHeaderFilterKey =
+  | 'primaryScene'
+  | 'secondaryScene'
+  | 'activity'
+  | 'subActivity'
+  | 'level'
+  | 'progress';
+type PlanningHeaderFilterSelections = Record<PlanningHeaderFilterKey, string[]>;
 
 const props = withDefaults(
   defineProps<{
@@ -33,45 +44,21 @@ const props = withDefaults(
   },
 );
 
-const progressOptions: SkillPlanningProgress[] = ['未开始', '开发中', '联调中', '已完成', '已延期'];
-const primarySceneOptions = [
-  '研发提效',
-  '质量保障',
-  '运营分析',
-  '知识管理',
-  '发布运维',
-  '用户支持',
-];
-const secondarySceneOptions = [
-  '代码生成',
-  '代码审查',
-  '测试设计',
-  '缺陷复盘',
-  '日志洞察',
-  '文档沉淀',
-  '变更管控',
-  '问答助手',
-];
-const activityOptions = [
-  '需求研发',
-  '测试验证',
-  '线上运营',
-  '交付复盘',
-  '版本发布',
-  '服务支撑',
-  '问题闭环',
-];
-const subActivityOptions = [
-  '接口开发',
-  '合并评审',
-  '用例生成',
-  '异常定位',
-  '知识入库',
-  '发布检查',
-  '问题分流',
-  '根因分析',
-];
-const levelOptions = ['个人级', '部门级', '组织级', '平台级'];
+const progressOptions = ref<SkillPlanningProgress[]>([
+  '未开始',
+  '开发中',
+  '联调中',
+  '已完成',
+  '已延期',
+]);
+const planningHeaderFilterKeys = [
+  'primaryScene',
+  'secondaryScene',
+  'activity',
+  'subActivity',
+  'level',
+  'progress',
+] as const;
 const pageSizeOptions = [5, 10, 20, 50];
 
 const emptyFilters = {
@@ -118,6 +105,21 @@ const page = ref(1);
 const pageSize = ref(10);
 const loading = ref(false);
 const selectedIds = ref<string[]>([]);
+const primarySceneOptions = ref<string[]>([]);
+const secondarySceneOptions = ref<string[]>([]);
+const activityOptions = ref<string[]>([]);
+const subActivityOptions = ref<string[]>([]);
+const levelOptions = ref<string[]>([]);
+const headerFilterOpenKey = ref<PlanningHeaderFilterKey | null>(null);
+const headerFilterSelections = reactive<PlanningHeaderFilterSelections>({
+  primaryScene: [],
+  secondaryScene: [],
+  activity: [],
+  subActivity: [],
+  level: [],
+  progress: [],
+});
+const plannedFinishSortOrder = ref<SkillPlanningSortOrder | ''>('');
 const importInputRef = ref<HTMLInputElement | null>(null);
 const importDialogOpen = ref(false);
 const importDragging = ref(false);
@@ -163,6 +165,26 @@ const selectedImportFileSize = computed(() => {
   const size = selectedImportFile.value.size / 1024;
   return size >= 1024 ? `${(size / 1024).toFixed(2)} MB` : `${Math.max(1, Math.round(size))} KB`;
 });
+const planningHeaderFilterOptions = computed<SkillPlanningFilterOptions>(() => ({
+  primaryScene: primarySceneOptions.value,
+  secondaryScene: secondarySceneOptions.value,
+  activity: activityOptions.value,
+  subActivity: subActivityOptions.value,
+  level: levelOptions.value,
+  progress: progressOptions.value,
+}));
+const hasActivePlanningHeaderFilters = computed(() =>
+  planningHeaderFilterKeys.some((key) => headerFilterSelections[key].length > 0),
+);
+const plannedFinishSortLabel = computed(() => {
+  if (plannedFinishSortOrder.value === 'asc') {
+    return '升序';
+  }
+  if (plannedFinishSortOrder.value === 'desc') {
+    return '降序';
+  }
+  return '未排序';
+});
 
 function createEmptyPlanningForm(): SkillPlanningPayload {
   return {
@@ -191,6 +213,93 @@ function showToast(message: string) {
   }, 2400);
 }
 
+function syncPlanningHeaderFilterSelections(options: SkillPlanningFilterOptions): void {
+  planningHeaderFilterKeys.forEach((key) => {
+    const allowed = new Set(options[key]);
+    headerFilterSelections[key] = headerFilterSelections[key].filter((item) => allowed.has(item));
+  });
+}
+
+async function loadPlanningFilterOptions(): Promise<void> {
+  const options = await querySkillPlanningFilterOptions();
+  primarySceneOptions.value = options.primaryScene;
+  secondarySceneOptions.value = options.secondaryScene;
+  activityOptions.value = options.activity;
+  subActivityOptions.value = options.subActivity;
+  levelOptions.value = options.level;
+  progressOptions.value = options.progress as SkillPlanningProgress[];
+  syncPlanningHeaderFilterSelections(options);
+}
+
+function headerFilterOptionList(key: PlanningHeaderFilterKey): string[] {
+  return planningHeaderFilterOptions.value[key];
+}
+
+function headerFilterSelectedCount(key: PlanningHeaderFilterKey): number {
+  return headerFilterSelections[key].length;
+}
+
+function isHeaderFilterOpen(key: PlanningHeaderFilterKey): boolean {
+  return headerFilterOpenKey.value === key;
+}
+
+function toggleHeaderFilterMenu(key: PlanningHeaderFilterKey): void {
+  headerFilterOpenKey.value = headerFilterOpenKey.value === key ? null : key;
+}
+
+async function applyPlanningTableFilters(): Promise<void> {
+  page.value = 1;
+  await reloadList();
+}
+
+async function toggleHeaderFilterOption(
+  key: PlanningHeaderFilterKey,
+  option: string,
+): Promise<void> {
+  const selected = headerFilterSelections[key];
+  headerFilterSelections[key] = selected.includes(option)
+    ? selected.filter((item) => item !== option)
+    : [...selected, option];
+  await applyPlanningTableFilters();
+}
+
+async function clearHeaderFilter(key: PlanningHeaderFilterKey): Promise<void> {
+  if (headerFilterSelections[key].length === 0) {
+    return;
+  }
+  headerFilterSelections[key] = [];
+  await applyPlanningTableFilters();
+}
+
+function resetPlanningHeaderFilters(): void {
+  planningHeaderFilterKeys.forEach((key) => {
+    headerFilterSelections[key] = [];
+  });
+  headerFilterOpenKey.value = null;
+}
+
+async function togglePlannedFinishSort(): Promise<void> {
+  if (plannedFinishSortOrder.value === '') {
+    plannedFinishSortOrder.value = 'asc';
+  } else if (plannedFinishSortOrder.value === 'asc') {
+    plannedFinishSortOrder.value = 'desc';
+  } else {
+    plannedFinishSortOrder.value = '';
+  }
+  await applyPlanningTableFilters();
+}
+
+function handlePlanningHeaderFilterOutsideClick(event: MouseEvent): void {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  if (target.closest('.planning-th-filter')) {
+    return;
+  }
+  headerFilterOpenKey.value = null;
+}
+
 function syncPlanningDepartmentLevels(segments = planningDepartmentSegments.value): void {
   planningDepartmentLevelRefs.forEach((levelRef, index) => {
     levelRef.value = segments[index] ?? '';
@@ -215,6 +324,18 @@ function onPlanningDepartmentClear(): void {
 function buildQuery(overrides: Partial<SkillPlanningQuery> = {}): SkillPlanningQuery {
   return {
     ...appliedFilters,
+    primaryScenes: [...headerFilterSelections.primaryScene],
+    secondaryScenes: [...headerFilterSelections.secondaryScene],
+    activities: [...headerFilterSelections.activity],
+    subActivities: [...headerFilterSelections.subActivity],
+    levels: [...headerFilterSelections.level],
+    progresses: [...headerFilterSelections.progress],
+    ...(plannedFinishSortOrder.value
+      ? {
+          sortBy: 'plannedFinishDate' as const,
+          sortOrder: plannedFinishSortOrder.value,
+        }
+      : {}),
     page: page.value,
     pageSize: pageSize.value,
     ...overrides,
@@ -251,6 +372,8 @@ async function resetQuery() {
   syncPlanningDepartmentLevels([]);
   Object.assign(filterForm, emptyFilters);
   Object.assign(appliedFilters, emptyFilters);
+  resetPlanningHeaderFilters();
+  plannedFinishSortOrder.value = '';
   page.value = 1;
   selectedIds.value = [];
   await reloadList();
@@ -337,6 +460,7 @@ async function submitPlanningForm() {
   }
 
   closeFormDialog();
+  await loadPlanningFilterOptions();
   await reloadList();
 }
 
@@ -415,6 +539,7 @@ async function submitImportFile() {
     importSubmitting.value = false;
     closeImportDialog();
     page.value = 1;
+    await loadPlanningFilterOptions();
     await reloadList();
   } catch (error) {
     importError.value = error instanceof Error ? error.message : '导入失败，请检查文件内容';
@@ -508,6 +633,7 @@ function requestDeleteRow(row: SkillPlanningItem) {
       await deleteSkillPlanning(row.id);
       selectedIds.value = selectedIds.value.filter((id) => id !== row.id);
       showToast('已删除');
+      await loadPlanningFilterOptions();
       await reloadList();
     },
   );
@@ -526,6 +652,7 @@ function requestBatchDelete() {
       const count = await batchDeleteSkillPlanning(selectedIds.value);
       selectedIds.value = [];
       showToast(`已删除 ${count} 条数据`);
+      await loadPlanningFilterOptions();
       await reloadList();
     },
   );
@@ -568,7 +695,19 @@ function progressClass(progress: SkillPlanningProgress): string {
 }
 
 onMounted(() => {
-  void reloadList();
+  document.addEventListener('mousedown', handlePlanningHeaderFilterOutsideClick);
+  void (async () => {
+    await loadPlanningFilterOptions();
+    await reloadList();
+  })();
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handlePlanningHeaderFilterOutsideClick);
+  if (toastTimer) {
+    window.clearTimeout(toastTimer);
+    toastTimer = null;
+  }
 });
 </script>
 
@@ -679,7 +818,15 @@ onMounted(() => {
       <div class="planning-toolbar">
         <div class="planning-toolbar__summary">
           <strong>Skill 规划清单</strong>
-          <span>已选 {{ selectedIds.length }} 条 / 共 {{ total }} 条</span>
+          <span>
+            已选 {{ selectedIds.length }} 条 / 共 {{ total }} 条
+            <template v-if="hasActivePlanningHeaderFilters || plannedFinishSortOrder">
+              ·
+              <template v-if="hasActivePlanningHeaderFilters">表头筛选已生效</template>
+              <template v-if="hasActivePlanningHeaderFilters && plannedFinishSortOrder"> · </template>
+              <template v-if="plannedFinishSortOrder">完成时间{{ plannedFinishSortLabel }}</template>
+            </template>
+          </span>
         </div>
         <div class="planning-toolbar__actions">
           <button
@@ -742,18 +889,341 @@ onMounted(() => {
               <th class="select-col">
                 <input type="checkbox" :checked="allPageSelected" @change="togglePageSelection" />
               </th>
-              <th>一级场景</th>
-              <th>二级场景</th>
-              <th>归属活动</th>
-              <th>归属子活动</th>
+              <th>
+                <div
+                  class="planning-th-filter"
+                  :class="{
+                    'is-open': isHeaderFilterOpen('primaryScene'),
+                    'is-active': headerFilterSelectedCount('primaryScene') > 0,
+                  }"
+                >
+                  <button
+                    type="button"
+                    class="planning-th-filter__trigger"
+                    @click.stop="toggleHeaderFilterMenu('primaryScene')"
+                  >
+                    <span>一级场景</span>
+                    <span
+                      v-if="headerFilterSelectedCount('primaryScene')"
+                      class="planning-th-filter__count"
+                    >
+                      {{ headerFilterSelectedCount('primaryScene') }}
+                    </span>
+                    <span class="planning-th-filter__caret" aria-hidden="true"></span>
+                  </button>
+                  <div v-if="isHeaderFilterOpen('primaryScene')" class="planning-th-filter__menu">
+                    <div class="planning-th-filter__menu-head">
+                      <strong>一级场景</strong>
+                      <button
+                        type="button"
+                        class="planning-th-filter__clear"
+                        :disabled="headerFilterSelectedCount('primaryScene') === 0"
+                        @click.stop="clearHeaderFilter('primaryScene')"
+                      >
+                        清空
+                      </button>
+                    </div>
+                    <div v-if="headerFilterOptionList('primaryScene').length" class="planning-th-filter__options">
+                      <label
+                        v-for="item in headerFilterOptionList('primaryScene')"
+                        :key="`primaryScene-${item}`"
+                        class="planning-th-filter__option"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="headerFilterSelections.primaryScene.includes(item)"
+                          @change="toggleHeaderFilterOption('primaryScene', item)"
+                        />
+                        <span>{{ item }}</span>
+                      </label>
+                    </div>
+                    <p v-else class="planning-th-filter__empty">暂无可选项</p>
+                  </div>
+                </div>
+              </th>
+              <th>
+                <div
+                  class="planning-th-filter"
+                  :class="{
+                    'is-open': isHeaderFilterOpen('secondaryScene'),
+                    'is-active': headerFilterSelectedCount('secondaryScene') > 0,
+                  }"
+                >
+                  <button
+                    type="button"
+                    class="planning-th-filter__trigger"
+                    @click.stop="toggleHeaderFilterMenu('secondaryScene')"
+                  >
+                    <span>二级场景</span>
+                    <span
+                      v-if="headerFilterSelectedCount('secondaryScene')"
+                      class="planning-th-filter__count"
+                    >
+                      {{ headerFilterSelectedCount('secondaryScene') }}
+                    </span>
+                    <span class="planning-th-filter__caret" aria-hidden="true"></span>
+                  </button>
+                  <div v-if="isHeaderFilterOpen('secondaryScene')" class="planning-th-filter__menu">
+                    <div class="planning-th-filter__menu-head">
+                      <strong>二级场景</strong>
+                      <button
+                        type="button"
+                        class="planning-th-filter__clear"
+                        :disabled="headerFilterSelectedCount('secondaryScene') === 0"
+                        @click.stop="clearHeaderFilter('secondaryScene')"
+                      >
+                        清空
+                      </button>
+                    </div>
+                    <div
+                      v-if="headerFilterOptionList('secondaryScene').length"
+                      class="planning-th-filter__options"
+                    >
+                      <label
+                        v-for="item in headerFilterOptionList('secondaryScene')"
+                        :key="`secondaryScene-${item}`"
+                        class="planning-th-filter__option"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="headerFilterSelections.secondaryScene.includes(item)"
+                          @change="toggleHeaderFilterOption('secondaryScene', item)"
+                        />
+                        <span>{{ item }}</span>
+                      </label>
+                    </div>
+                    <p v-else class="planning-th-filter__empty">暂无可选项</p>
+                  </div>
+                </div>
+              </th>
+              <th>
+                <div
+                  class="planning-th-filter"
+                  :class="{
+                    'is-open': isHeaderFilterOpen('activity'),
+                    'is-active': headerFilterSelectedCount('activity') > 0,
+                  }"
+                >
+                  <button
+                    type="button"
+                    class="planning-th-filter__trigger"
+                    @click.stop="toggleHeaderFilterMenu('activity')"
+                  >
+                    <span>归属活动</span>
+                    <span v-if="headerFilterSelectedCount('activity')" class="planning-th-filter__count">
+                      {{ headerFilterSelectedCount('activity') }}
+                    </span>
+                    <span class="planning-th-filter__caret" aria-hidden="true"></span>
+                  </button>
+                  <div v-if="isHeaderFilterOpen('activity')" class="planning-th-filter__menu">
+                    <div class="planning-th-filter__menu-head">
+                      <strong>归属活动</strong>
+                      <button
+                        type="button"
+                        class="planning-th-filter__clear"
+                        :disabled="headerFilterSelectedCount('activity') === 0"
+                        @click.stop="clearHeaderFilter('activity')"
+                      >
+                        清空
+                      </button>
+                    </div>
+                    <div v-if="headerFilterOptionList('activity').length" class="planning-th-filter__options">
+                      <label
+                        v-for="item in headerFilterOptionList('activity')"
+                        :key="`activity-${item}`"
+                        class="planning-th-filter__option"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="headerFilterSelections.activity.includes(item)"
+                          @change="toggleHeaderFilterOption('activity', item)"
+                        />
+                        <span>{{ item }}</span>
+                      </label>
+                    </div>
+                    <p v-else class="planning-th-filter__empty">暂无可选项</p>
+                  </div>
+                </div>
+              </th>
+              <th>
+                <div
+                  class="planning-th-filter"
+                  :class="{
+                    'is-open': isHeaderFilterOpen('subActivity'),
+                    'is-active': headerFilterSelectedCount('subActivity') > 0,
+                  }"
+                >
+                  <button
+                    type="button"
+                    class="planning-th-filter__trigger"
+                    @click.stop="toggleHeaderFilterMenu('subActivity')"
+                  >
+                    <span>归属子活动</span>
+                    <span
+                      v-if="headerFilterSelectedCount('subActivity')"
+                      class="planning-th-filter__count"
+                    >
+                      {{ headerFilterSelectedCount('subActivity') }}
+                    </span>
+                    <span class="planning-th-filter__caret" aria-hidden="true"></span>
+                  </button>
+                  <div v-if="isHeaderFilterOpen('subActivity')" class="planning-th-filter__menu">
+                    <div class="planning-th-filter__menu-head">
+                      <strong>归属子活动</strong>
+                      <button
+                        type="button"
+                        class="planning-th-filter__clear"
+                        :disabled="headerFilterSelectedCount('subActivity') === 0"
+                        @click.stop="clearHeaderFilter('subActivity')"
+                      >
+                        清空
+                      </button>
+                    </div>
+                    <div
+                      v-if="headerFilterOptionList('subActivity').length"
+                      class="planning-th-filter__options"
+                    >
+                      <label
+                        v-for="item in headerFilterOptionList('subActivity')"
+                        :key="`subActivity-${item}`"
+                        class="planning-th-filter__option"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="headerFilterSelections.subActivity.includes(item)"
+                          @change="toggleHeaderFilterOption('subActivity', item)"
+                        />
+                        <span>{{ item }}</span>
+                      </label>
+                    </div>
+                    <p v-else class="planning-th-filter__empty">暂无可选项</p>
+                  </div>
+                </div>
+              </th>
               <th>Skill 名称</th>
               <th class="desc-col">Skill 说明</th>
-              <th>层级</th>
+              <th>
+                <div
+                  class="planning-th-filter"
+                  :class="{
+                    'is-open': isHeaderFilterOpen('level'),
+                    'is-active': headerFilterSelectedCount('level') > 0,
+                  }"
+                >
+                  <button
+                    type="button"
+                    class="planning-th-filter__trigger"
+                    @click.stop="toggleHeaderFilterMenu('level')"
+                  >
+                    <span>层级</span>
+                    <span v-if="headerFilterSelectedCount('level')" class="planning-th-filter__count">
+                      {{ headerFilterSelectedCount('level') }}
+                    </span>
+                    <span class="planning-th-filter__caret" aria-hidden="true"></span>
+                  </button>
+                  <div v-if="isHeaderFilterOpen('level')" class="planning-th-filter__menu">
+                    <div class="planning-th-filter__menu-head">
+                      <strong>层级</strong>
+                      <button
+                        type="button"
+                        class="planning-th-filter__clear"
+                        :disabled="headerFilterSelectedCount('level') === 0"
+                        @click.stop="clearHeaderFilter('level')"
+                      >
+                        清空
+                      </button>
+                    </div>
+                    <div v-if="headerFilterOptionList('level').length" class="planning-th-filter__options">
+                      <label
+                        v-for="item in headerFilterOptionList('level')"
+                        :key="`level-${item}`"
+                        class="planning-th-filter__option"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="headerFilterSelections.level.includes(item)"
+                          @change="toggleHeaderFilterOption('level', item)"
+                        />
+                        <span>{{ item }}</span>
+                      </label>
+                    </div>
+                    <p v-else class="planning-th-filter__empty">暂无可选项</p>
+                  </div>
+                </div>
+              </th>
               <th>责任 Owner</th>
               <th>归属部门</th>
               <th>开发责任人</th>
-              <th>计划完成时间</th>
-              <th>当前进展</th>
+              <th>
+                <button
+                  type="button"
+                  class="planning-th-sort"
+                  :class="{
+                    'is-active': plannedFinishSortOrder,
+                    'is-desc': plannedFinishSortOrder === 'desc',
+                  }"
+                  :title="`计划完成时间排序：${plannedFinishSortLabel}`"
+                  @click="togglePlannedFinishSort"
+                >
+                  <span>计划完成时间</span>
+                  <span v-if="plannedFinishSortOrder" class="planning-th-sort__badge">
+                    {{ plannedFinishSortLabel }}
+                  </span>
+                  <span class="planning-th-sort__caret" aria-hidden="true"></span>
+                </button>
+              </th>
+              <th>
+                <div
+                  class="planning-th-filter"
+                  :class="{
+                    'is-open': isHeaderFilterOpen('progress'),
+                    'is-active': headerFilterSelectedCount('progress') > 0,
+                  }"
+                >
+                  <button
+                    type="button"
+                    class="planning-th-filter__trigger"
+                    @click.stop="toggleHeaderFilterMenu('progress')"
+                  >
+                    <span>当前进展</span>
+                    <span
+                      v-if="headerFilterSelectedCount('progress')"
+                      class="planning-th-filter__count"
+                    >
+                      {{ headerFilterSelectedCount('progress') }}
+                    </span>
+                    <span class="planning-th-filter__caret" aria-hidden="true"></span>
+                  </button>
+                  <div v-if="isHeaderFilterOpen('progress')" class="planning-th-filter__menu">
+                    <div class="planning-th-filter__menu-head">
+                      <strong>当前进展</strong>
+                      <button
+                        type="button"
+                        class="planning-th-filter__clear"
+                        :disabled="headerFilterSelectedCount('progress') === 0"
+                        @click.stop="clearHeaderFilter('progress')"
+                      >
+                        清空
+                      </button>
+                    </div>
+                    <div v-if="headerFilterOptionList('progress').length" class="planning-th-filter__options">
+                      <label
+                        v-for="item in headerFilterOptionList('progress')"
+                        :key="`progress-${item}`"
+                        class="planning-th-filter__option"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="headerFilterSelections.progress.includes(item)"
+                          @change="toggleHeaderFilterOption('progress', item)"
+                        />
+                        <span>{{ item }}</span>
+                      </label>
+                    </div>
+                    <p v-else class="planning-th-filter__empty">暂无可选项</p>
+                  </div>
+                </div>
+              </th>
               <th class="action-col">操作</th>
             </tr>
           </thead>
@@ -1435,6 +1905,11 @@ onMounted(() => {
   table-layout: fixed;
 }
 
+.planning-table thead {
+  position: relative;
+  z-index: 20;
+}
+
 .planning-table th,
 .planning-table td {
   padding: 13px 12px;
@@ -1449,12 +1924,180 @@ onMounted(() => {
 .planning-table th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 21;
+  overflow: visible;
   background: #f8fbff;
   color: #52647d;
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.planning-th-filter {
+  position: relative;
+  min-width: 0;
+}
+
+.planning-th-filter.is-open {
+  z-index: 40;
+}
+
+.planning-th-filter__trigger,
+.planning-th-sort {
+  width: 100%;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.planning-th-filter__trigger:hover,
+.planning-th-sort:hover {
+  color: #1d4ed8;
+}
+
+.planning-th-filter.is-active .planning-th-filter__trigger,
+.planning-th-filter.is-open .planning-th-filter__trigger,
+.planning-th-sort.is-active {
+  color: #1d4ed8;
+}
+
+.planning-th-filter__count,
+.planning-th-sort__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.planning-th-filter__caret,
+.planning-th-sort__caret {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  opacity: 0.8;
+  transform: translateY(-1px) rotate(45deg);
+  transition: transform 0.16s ease;
+}
+
+.planning-th-filter.is-open .planning-th-filter__caret {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+.planning-th-sort.is-active .planning-th-sort__caret {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+.planning-th-sort.is-desc .planning-th-sort__caret {
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.planning-th-filter__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  width: 220px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbe5f2;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+}
+
+.planning-th-filter__menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.planning-th-filter__menu-head strong {
+  color: #253857;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.planning-th-filter__clear {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid #dbe5f2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #52647d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.planning-th-filter__clear:hover:not(:disabled) {
+  border-color: #b9ccff;
+  background: #f6f9ff;
+  color: #1d4ed8;
+}
+
+.planning-th-filter__clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.planning-th-filter__options {
+  max-height: 240px;
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.planning-th-filter__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planning-th-filter__option:hover {
+  background: #f8fbff;
+}
+
+.planning-th-filter__option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.planning-th-filter__empty {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .planning-table tbody tr:hover td {
