@@ -496,6 +496,7 @@ export type SkillExpertReviewDetailDto = {
   dimensionScores: ExpertReviewDimensionScoreDto[];
   badgeIds: string[];
   badgeReason?: string;
+  overallOpinion?: string;
   updatedAt?: string;
 };
 
@@ -505,6 +506,7 @@ export type ExpertReviewDraftBody = {
   dimensionScores: ExpertReviewDimensionScoreDto[];
   badgeIds: string[];
   badgeReason?: string;
+  overallOpinion?: string;
 };
 
 export type ExpertReviewSubmitBody = {
@@ -517,4 +519,5 @@ export type ExpertReviewSubmitBody = {
   }[];
   badgeIds: string[];
   badgeReason?: string;
+  overallOpinion?: string;
 };

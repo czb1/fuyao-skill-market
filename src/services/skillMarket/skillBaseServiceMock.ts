@@ -120,6 +120,7 @@ type MockSkillReviewDetail = {
   dimensionScores: MockExpertReviewDimensionScore[];
   badgeIds: string[];
   badgeReason?: string;
+  overallOpinion?: string;
   updatedAt?: string;
 };
 
@@ -470,6 +471,10 @@ function normalizeBadgeReason(raw: unknown, badgeIds: string[]): string {
   return readString(raw, '').trim();
 }
 
+function normalizeOverallOpinion(raw: unknown): string {
+  return readString(raw, '').trim();
+}
+
 function ensureExpertReviewDetail(skillId: string): MockSkillReviewDetail {
   const key = String(skillId).trim();
   const existing = expertReviewDetailStore[key];
@@ -494,12 +499,17 @@ function ensureExpertReviewDetail(skillId: string): MockSkillReviewDetail {
     dimensionScores,
     badgeIds: submitted ? [MOCK_REVIEW_BADGES[seed % MOCK_REVIEW_BADGES.length]?.badgeId ?? ''] : [],
     badgeReason: '',
+    overallOpinion: '',
     updatedAt: nowText(),
   };
 
   detail.badgeIds = detail.badgeIds.filter(Boolean);
   if (detail.badgeIds.length > 0) {
     detail.badgeReason = `推荐授予${detail.badgeIds.length}项勋章，Skill 在对应能力维度上表现突出。`;
+  }
+  if (submitted) {
+    detail.overallOpinion =
+      '整体来看，该 Skill 在问题识别、方案设计与工程落地上表现均衡，具备较好的推广复用价值。';
   }
   expertReviewDetailStore[key] = detail;
   return detail;
@@ -1208,6 +1218,7 @@ function handleSkillRequest(
     detail.dimensionScores = normalizeDraftDimensionScores(body.dimensionScores);
     detail.badgeIds = normalizeBadgeIds(body.badgeIds);
     detail.badgeReason = normalizeBadgeReason(body.badgeReason, detail.badgeIds);
+    detail.overallOpinion = normalizeOverallOpinion(body.overallOpinion);
     const totalScore = body.totalScore;
     if (typeof totalScore === 'number' && Number.isFinite(totalScore)) {
       detail.totalScore = roundToTwo(totalScore);
@@ -1227,6 +1238,7 @@ function handleSkillRequest(
     detail.dimensionScores = normalizeDraftDimensionScores(body.dimensionScores);
     detail.badgeIds = normalizeBadgeIds(body.badgeIds);
     detail.badgeReason = normalizeBadgeReason(body.badgeReason, detail.badgeIds);
+    detail.overallOpinion = normalizeOverallOpinion(body.overallOpinion);
     const totalScore = body.totalScore;
     if (typeof totalScore === 'number' && Number.isFinite(totalScore)) {
       detail.totalScore = roundToTwo(totalScore);

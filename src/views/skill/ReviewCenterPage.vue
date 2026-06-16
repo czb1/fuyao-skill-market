@@ -64,6 +64,8 @@ const expertDimensionForms = reactive<ExpertDimensionFormState[]>([]);
 const selectedReviewBadgeIds = ref<string[]>([]);
 const selectedReviewBadgeReason = ref('');
 const selectedReviewBadgeReasonError = ref('');
+const expertOverallOpinion = ref('');
+const expertOverallOpinionError = ref('');
 const expertReviewId = ref('');
 const expertReviewStatus = ref<'pending' | 'draft' | 'submitted'>('pending');
 const expertReviewUpdatedAt = ref('');
@@ -253,6 +255,7 @@ function resetExpertReviewErrors(): void {
     dimension.reasonError = '';
   });
   selectedReviewBadgeReasonError.value = '';
+  expertOverallOpinionError.value = '';
 }
 
 function buildExpertDimensionForms(
@@ -283,6 +286,8 @@ function applyExpertReviewDetail(detail?: SkillExpertReviewDetailDto | null): vo
   selectedReviewBadgeIds.value = [...(detail?.badgeIds ?? [])];
   selectedReviewBadgeReason.value = String(detail?.badgeReason ?? '');
   selectedReviewBadgeReasonError.value = '';
+  expertOverallOpinion.value = String(detail?.overallOpinion ?? '');
+  expertOverallOpinionError.value = '';
   replaceReactiveArray(expertDimensionForms, buildExpertDimensionForms(expertReviewDimensions.value, detail));
 
   const task = activeTask.value;
@@ -348,6 +353,8 @@ async function applyReviewCenterData(data: ReviewCenterData) {
     selectedReviewBadgeIds.value = [];
     selectedReviewBadgeReason.value = '';
     selectedReviewBadgeReasonError.value = '';
+    expertOverallOpinion.value = '';
+    expertOverallOpinionError.value = '';
     replaceReactiveArray(expertDimensionForms, []);
   }
 }
@@ -587,6 +594,7 @@ function toggleReviewBadge(badgeId: string): void {
 function buildExpertReviewDraftPayload() {
   const badgeIds = [...selectedReviewBadgeIds.value];
   const badgeReason = badgeIds.length > 0 ? selectedReviewBadgeReason.value.trim() : '';
+  const overallOpinion = expertOverallOpinion.value.trim();
   return {
     reviewId: currentTaskReviewId(),
     totalScore: expertReviewTotalScore.value,
@@ -607,6 +615,7 @@ function buildExpertReviewDraftPayload() {
     }),
     badgeIds,
     ...(badgeReason ? { badgeReason } : {}),
+    overallOpinion,
   };
 }
 
@@ -656,6 +665,11 @@ function validateExpertReviewSubmission(): boolean {
     showToast('评分理由不少于10个字');
     return false;
   }
+  if (!expertOverallOpinion.value.trim()) {
+    expertOverallOpinionError.value = '请填写整体评审意见';
+    showToast('请填写整体评审意见');
+    return false;
+  }
   if (selectedReviewBadgeIds.value.length > 0 && !selectedReviewBadgeReason.value.trim()) {
     selectedReviewBadgeReasonError.value = '请选择勋章时请填写推荐理由';
     showToast('请选择勋章时请填写推荐理由');
@@ -668,6 +682,7 @@ function buildExpertReviewSubmitPayload() {
   const totalScore = expertReviewTotalScore.value ?? 0;
   const badgeIds = [...selectedReviewBadgeIds.value];
   const badgeReason = badgeIds.length > 0 ? selectedReviewBadgeReason.value.trim() : '';
+  const overallOpinion = expertOverallOpinion.value.trim();
   return {
     reviewId: currentTaskReviewId(),
     totalScore,
@@ -678,6 +693,7 @@ function buildExpertReviewSubmitPayload() {
     })),
     badgeIds,
     ...(badgeReason ? { badgeReason } : {}),
+    overallOpinion,
   };
 }
 
@@ -685,11 +701,15 @@ function prependExpertReviewHistory(detail: SkillExpertReviewDetailDto): void {
   const badgeNames = detail.badgeIds.map(
     (badgeId) => badgeOptions.value.find((badge) => badge.badgeId === badgeId)?.name ?? badgeId,
   );
-  const summaryParts = expertDimensionForms.map(
-    (dimension) => `${dimension.name}：${dimension.reason.trim()}`,
-  );
+  const summaryParts: string[] = [];
+  if (detail.overallOpinion?.trim()) {
+    summaryParts.push(detail.overallOpinion.trim());
+  }
   if (badgeNames.length > 0 && detail.badgeReason?.trim()) {
     summaryParts.push(`勋章推荐：${badgeNames.join('、')}；理由：${detail.badgeReason.trim()}`);
+  }
+  if (summaryParts.length === 0) {
+    summaryParts.push(...expertDimensionForms.map((dimension) => `${dimension.name}：${dimension.reason.trim()}`));
   }
   const scores = expertDimensionForms.map((dimension) => ({
     dimension: dimension.name,
@@ -1560,6 +1580,30 @@ onBeforeUnmount(() => {
                       </div>
                     </article>
                   </div>
+
+                  <section class="expert-opinion-panel" aria-labelledby="expert-opinion-title">
+                    <div class="expert-opinion-panel__header">
+                      <div>
+                        <h3 id="expert-opinion-title">整体评审意见</h3>
+                        <p>用于补充整体判断、主要亮点、风险点和后续改进建议。</p>
+                      </div>
+                    </div>
+
+                    <label class="expert-field">
+                      <span class="expert-field__label">整体评审意见</span>
+                      <textarea
+                        v-model="expertOverallOpinion"
+                        placeholder="请从整体价值、成熟度、推广建议等角度填写本次专家评审意见"
+                        @input="expertOverallOpinionError = ''"
+                      ></textarea>
+                      <span class="expert-field__hint">
+                        提交评审时必填，用于沉淀对该 Skill 的整体结论。
+                      </span>
+                      <span v-if="expertOverallOpinionError" class="expert-field__error">
+                        {{ expertOverallOpinionError }}
+                      </span>
+                    </label>
+                  </section>
 
                   <section class="expert-badge-panel" aria-labelledby="expert-badge-title">
                     <div class="expert-badge-panel__header">
@@ -4623,6 +4667,7 @@ input:focus {
   line-height: 1.5;
 }
 
+.expert-opinion-panel,
 .expert-badge-panel {
   margin-top: 18px;
   padding: 18px;
@@ -4631,6 +4676,7 @@ input:focus {
   background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
 }
 
+.expert-opinion-panel__header,
 .expert-badge-panel__header {
   display: flex;
   align-items: flex-start;
@@ -4639,6 +4685,7 @@ input:focus {
   margin-bottom: 16px;
 }
 
+.expert-opinion-panel__header h3,
 .expert-badge-panel__header h3 {
   margin: 0;
   color: #12213f;
@@ -4646,6 +4693,7 @@ input:focus {
   font-weight: 700;
 }
 
+.expert-opinion-panel__header p,
 .expert-badge-panel__header p {
   margin: 8px 0 0;
   color: #64748b;
@@ -5479,6 +5527,7 @@ input:focus {
     grid-template-columns: 1fr;
   }
 
+  .expert-opinion-panel__header,
   .expert-badge-panel__header,
   .expert-dimension-card__header {
     flex-direction: column;
