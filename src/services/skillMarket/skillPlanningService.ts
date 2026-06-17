@@ -1,529 +1,257 @@
-import * as XLSX from 'xlsx';
+import { skillBaseService } from './skillBaseService';
+import {
+  exportSkillPlanningToExcel,
+  normalizeProgress,
+  normalizeSkillPlanningItem,
+  normalizeTextArray,
+  type SkillPlanningBatchPatch,
+  type SkillPlanningFilterOptions,
+  type SkillPlanningImportResult,
+  type SkillPlanningItem,
+  type SkillPlanningListResult,
+  type SkillPlanningPayload,
+  type SkillPlanningQuery,
+} from './skillPlanningShared';
 
-export type SkillPlanningProgress = '未开始' | '开发中' | '联调中' | '已完成' | '已延期';
-export type SkillPlanningSortField = 'plannedFinishDate';
-export type SkillPlanningSortOrder = 'asc' | 'desc';
+export { exportSkillPlanningToExcel, skillPlanningExportHeaders } from './skillPlanningShared';
+export type {
+  SkillPlanningBatchPatch,
+  SkillPlanningFilterOptions,
+  SkillPlanningImportResult,
+  SkillPlanningItem,
+  SkillPlanningListResult,
+  SkillPlanningPayload,
+  SkillPlanningProgress,
+  SkillPlanningQuery,
+  SkillPlanningSortField,
+  SkillPlanningSortOrder,
+} from './skillPlanningShared';
 
-export interface SkillPlanningItem {
-  id: string;
-  primaryScene: string;
-  secondaryScene: string;
-  activity: string;
-  subActivity: string;
-  skillName: string;
-  skillDescription: string;
-  level: string;
-  owner: string;
-  department: string;
-  developer: string;
-  plannedFinishDate: string;
-  progress: SkillPlanningProgress;
+type SkillPlanningMockModule = typeof import('./skillPlanningMockService');
+
+function useHttpTransport(): boolean {
+  return String(import.meta.env.VITE_SKILL_MARKET_TRANSPORT ?? 'mock')
+    .trim()
+    .toLowerCase() === 'http';
 }
 
-export interface SkillPlanningQuery {
-  department?: string;
-  DepartmentL1?: string;
-  DepartmentL2?: string;
-  DepartmentL3?: string;
-  DepartmentL4?: string;
-  DepartmentL5?: string;
-  DepartmentL6?: string;
-  primaryScene?: string;
-  primaryScenes?: string[];
-  secondaryScene?: string;
-  secondaryScenes?: string[];
-  activity?: string;
-  activities?: string[];
-  subActivity?: string;
-  subActivities?: string[];
-  level?: string;
-  levels?: string[];
-  progress?: string;
-  progresses?: string[];
-  owner?: string;
-  plannedStartDate?: string;
-  plannedEndDate?: string;
-  keyword?: string;
-  sortBy?: SkillPlanningSortField;
-  sortOrder?: SkillPlanningSortOrder;
-  page?: number;
-  pageSize?: number;
+async function loadMockService(): Promise<SkillPlanningMockModule> {
+  return import('./skillPlanningMockService');
 }
 
-export interface SkillPlanningListResult {
-  list: SkillPlanningItem[];
-  total: number;
-}
-
-export interface SkillPlanningFilterOptions {
-  primaryScene: string[];
-  secondaryScene: string[];
-  activity: string[];
-  subActivity: string[];
-  level: string[];
-  progress: string[];
-}
-
-export interface SkillPlanningImportResult {
-  created: number;
-  missingFields: string[];
-}
-
-export type SkillPlanningPayload = Omit<SkillPlanningItem, 'id'>;
-export type SkillPlanningBatchPatch = Partial<
-  Pick<SkillPlanningItem, 'department' | 'progress' | 'plannedFinishDate' | 'developer'>
->;
-
-const skillPlanningFieldMap: Record<string, keyof SkillPlanningPayload> = {
-  一级场景: 'primaryScene',
-  二级场景: 'secondaryScene',
-  归属活动: 'activity',
-  归属子活动: 'subActivity',
-  'Skill 名称': 'skillName',
-  Skill名称: 'skillName',
-  SKILL名称: 'skillName',
-  'Skill 说明': 'skillDescription',
-  Skill说明: 'skillDescription',
-  SKILL说明: 'skillDescription',
-  层级: 'level',
-  '责任 Owner': 'owner',
-  责任Owner: 'owner',
-  '责任 Owener': 'owner',
-  责任Owener: 'owner',
-  归属部门: 'department',
-  开发责任人: 'developer',
-  计划完成时间: 'plannedFinishDate',
-  当前进展: 'progress',
-};
-
-export const skillPlanningExportHeaders: Array<keyof typeof skillPlanningFieldMap> = [
-  '一级场景',
-  '二级场景',
-  '归属活动',
-  '归属子活动',
-  'Skill 名称',
-  'Skill 说明',
-  '层级',
-  '责任 Owner',
-  '归属部门',
-  '开发责任人',
-  '计划完成时间',
-  '当前进展',
-];
-
-const initialSkillPlanningItems: SkillPlanningItem[] = [
-  {
-    id: 'plan-1001',
-    primaryScene: '研发提效',
-    secondaryScene: '代码生成',
-    activity: '需求研发',
-    subActivity: '接口开发',
-    skillName: '接口 Mock 生成 Skill',
-    skillDescription: '根据接口定义自动生成 Mock 数据和联调示例，减少前后端等待时间。',
-    level: '平台级',
-    owner: '张三',
-    department: '平台工具部',
-    developer: '李明',
-    plannedFinishDate: '2026-07-15',
-    progress: '开发中',
-  },
-  {
-    id: 'plan-1002',
-    primaryScene: '质量保障',
-    secondaryScene: '测试设计',
-    activity: '测试验证',
-    subActivity: '用例生成',
-    skillName: '测试用例评审 Skill',
-    skillDescription: '围绕需求说明和历史缺陷生成测试用例评审建议，提升测试覆盖完整度。',
-    level: '部门级',
-    owner: '李四',
-    department: '质量工具组',
-    developer: '周扬',
-    plannedFinishDate: '2026-08-05',
-    progress: '未开始',
-  },
-  {
-    id: 'plan-1003',
-    primaryScene: '运营分析',
-    secondaryScene: '日志洞察',
-    activity: '线上运营',
-    subActivity: '异常定位',
-    skillName: '日志分析 Skill',
-    skillDescription: '汇总异常日志、调用链和发布记录，输出可执行的问题定位摘要。',
-    level: '组织级',
-    owner: '王五',
-    department: '数据平台部',
-    developer: '陈七',
-    plannedFinishDate: '2026-06-30',
-    progress: '联调中',
-  },
-  {
-    id: 'plan-1004',
-    primaryScene: '知识管理',
-    secondaryScene: '文档沉淀',
-    activity: '交付复盘',
-    subActivity: '知识入库',
-    skillName: '会议纪要沉淀 Skill',
-    skillDescription: '从会议记录中抽取决策、风险、待办和关联文档，自动整理到团队知识库。',
-    level: '部门级',
-    owner: '赵六',
-    department: '研发效能部',
-    developer: '刘岚',
-    plannedFinishDate: '2026-07-28',
-    progress: '开发中',
-  },
-  {
-    id: 'plan-1005',
-    primaryScene: '发布运维',
-    secondaryScene: '变更管控',
-    activity: '版本发布',
-    subActivity: '发布检查',
-    skillName: '发布风险检查 Skill',
-    skillDescription: '结合发布单、代码变更和历史事故，生成发布前风险检查清单。',
-    level: '平台级',
-    owner: '钱慧',
-    department: '云平台部',
-    developer: '吴越',
-    plannedFinishDate: '2026-06-20',
-    progress: '已延期',
-  },
-  {
-    id: 'plan-1006',
-    primaryScene: '用户支持',
-    secondaryScene: '问答助手',
-    activity: '服务支撑',
-    subActivity: '问题分流',
-    skillName: '工单智能分派 Skill',
-    skillDescription: '按问题类型、系统模块和处理经验自动推荐承接团队与处理路径。',
-    level: '组织级',
-    owner: '孙宇',
-    department: '客户成功部',
-    developer: '高宁',
-    plannedFinishDate: '2026-09-10',
-    progress: '未开始',
-  },
-  {
-    id: 'plan-1007',
-    primaryScene: '研发提效',
-    secondaryScene: '代码审查',
-    activity: '需求研发',
-    subActivity: '合并评审',
-    skillName: '代码评审摘要 Skill',
-    skillDescription: '生成代码改动摘要、风险点和建议关注文件，辅助 reviewer 快速进入上下文。',
-    level: '个人级',
-    owner: '何倩',
-    department: '平台工具部',
-    developer: '许安',
-    plannedFinishDate: '2026-08-18',
-    progress: '开发中',
-  },
-  {
-    id: 'plan-1008',
-    primaryScene: '质量保障',
-    secondaryScene: '缺陷复盘',
-    activity: '问题闭环',
-    subActivity: '根因分析',
-    skillName: '缺陷根因归纳 Skill',
-    skillDescription: '对缺陷描述、提交记录和修复方案进行归纳，输出可复用的质量改进建议。',
-    level: '部门级',
-    owner: '郑欣',
-    department: '质量工具组',
-    developer: '马可',
-    plannedFinishDate: '2026-07-08',
-    progress: '已完成',
-  },
-];
-
-let skillPlanningItems = [...initialSkillPlanningItems];
-let idSeed = 2000;
-
-function normalizeText(value: unknown): string {
-  return String(value ?? '').trim();
-}
-
-function normalizeProgress(value: unknown): SkillPlanningProgress {
-  const text = normalizeText(value);
-  if (['未开始', '开发中', '联调中', '已完成', '已延期'].includes(text)) {
-    return text as SkillPlanningProgress;
+function readNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
   }
-  return '未开始';
+  const parsed = Number(String(value ?? '').trim());
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function normalizeTextArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return [...new Set(value.map((item) => normalizeText(item)).filter(Boolean))];
+function unwrapResponseData<T>(response: unknown): T {
+  const record =
+    response && typeof response === 'object' ? (response as Record<string, unknown>) : undefined;
+  return (record?.data ?? response) as T;
 }
 
-function cloneItem(item: SkillPlanningItem): SkillPlanningItem {
-  return { ...item };
-}
-
-function matchesDateRange(item: SkillPlanningItem, query: SkillPlanningQuery): boolean {
-  const date = item.plannedFinishDate;
-  if (query.plannedStartDate && date < query.plannedStartDate) {
-    return false;
-  }
-  if (query.plannedEndDate && date > query.plannedEndDate) {
-    return false;
-  }
-  return true;
-}
-
-function matchesDiscreteFilter(value: string, singleValue: string, multiValues: string[]): boolean {
-  if (singleValue && value !== singleValue) {
-    return false;
-  }
-
-  if (multiValues.length > 0 && !multiValues.includes(value)) {
-    return false;
-  }
-
-  return true;
-}
-
-function sortItems(items: SkillPlanningItem[], query: SkillPlanningQuery): SkillPlanningItem[] {
-  if (query.sortBy !== 'plannedFinishDate' || !query.sortOrder) {
-    return items;
-  }
-
-  const sorted = [...items];
-  sorted.sort((left, right) => {
-    const result = left.plannedFinishDate.localeCompare(right.plannedFinishDate);
-    return query.sortOrder === 'asc' ? result : -result;
-  });
-  return sorted;
-}
-
-function distinctValuesInOrder(values: string[]): string[] {
-  return [...new Set(values.map((value) => normalizeText(value)).filter(Boolean))];
-}
-
-function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
-  const keyword = normalizeText(query.keyword).toLowerCase();
-  const primaryScenes = normalizeTextArray(query.primaryScenes);
-  const secondaryScenes = normalizeTextArray(query.secondaryScenes);
-  const activities = normalizeTextArray(query.activities);
-  const subActivities = normalizeTextArray(query.subActivities);
-  const levels = normalizeTextArray(query.levels);
-  const progresses = normalizeTextArray(query.progresses);
-  const department =
-    normalizeText(query.department) ||
-    [
-      query.DepartmentL6,
-      query.DepartmentL5,
-      query.DepartmentL4,
-      query.DepartmentL3,
-      query.DepartmentL2,
-      query.DepartmentL1,
-    ]
-      .map(normalizeText)
-      .find(Boolean) ||
-    '';
-  const primaryScene = normalizeText(query.primaryScene);
-  const secondaryScene = normalizeText(query.secondaryScene);
-  const activity = normalizeText(query.activity);
-  const subActivity = normalizeText(query.subActivity);
-  const level = normalizeText(query.level);
-  const progress = normalizeText(query.progress);
-  const owner = normalizeText(query.owner);
-
-  return skillPlanningItems.filter((item) => {
-    if (department && item.department !== department) return false;
-    if (!matchesDiscreteFilter(item.primaryScene, primaryScene, primaryScenes)) return false;
-    if (!matchesDiscreteFilter(item.secondaryScene, secondaryScene, secondaryScenes)) return false;
-    if (!matchesDiscreteFilter(item.activity, activity, activities)) return false;
-    if (!matchesDiscreteFilter(item.subActivity, subActivity, subActivities)) return false;
-    if (!matchesDiscreteFilter(item.level, level, levels)) return false;
-    if (!matchesDiscreteFilter(item.progress, progress, progresses)) return false;
-    if (owner && !item.owner.includes(owner)) return false;
-    if (!matchesDateRange(item, query)) return false;
-    if (!keyword) return true;
-
-    return [item.skillName, item.skillDescription, item.developer]
-      .join(' ')
-      .toLowerCase()
-      .includes(keyword);
-  });
-}
-
-function normalizePayload(payload: SkillPlanningPayload): SkillPlanningPayload {
-  return {
-    primaryScene: normalizeText(payload.primaryScene),
-    secondaryScene: normalizeText(payload.secondaryScene),
-    activity: normalizeText(payload.activity),
-    subActivity: normalizeText(payload.subActivity),
-    skillName: normalizeText(payload.skillName),
-    skillDescription: normalizeText(payload.skillDescription),
-    level: normalizeText(payload.level),
-    owner: normalizeText(payload.owner),
-    department: normalizeText(payload.department),
-    developer: normalizeText(payload.developer),
-    plannedFinishDate: normalizeText(payload.plannedFinishDate),
-    progress: normalizeProgress(payload.progress),
-  };
-}
-
-function rowToPayload(row: Record<string, unknown>): SkillPlanningPayload {
-  const payload = {} as SkillPlanningPayload;
-  for (const [label, key] of Object.entries(skillPlanningFieldMap)) {
-    if (row[label] !== undefined) {
-      (payload[key] as string) =
-        key === 'progress' ? normalizeProgress(row[label]) : normalizeText(row[label]);
+function pickArray(record: Record<string, unknown>, keys: string[]): unknown[] {
+  for (const key of keys) {
+    if (Array.isArray(record[key])) {
+      return record[key] as unknown[];
     }
   }
-  return normalizePayload(payload);
+  return [];
 }
 
-function itemToExportRow(item: SkillPlanningItem): Record<string, string> {
+function normalizeHttpFilterOptions(response: unknown): SkillPlanningFilterOptions {
+  const data = unwrapResponseData<unknown>(response);
+  const record =
+    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+
   return {
-    一级场景: item.primaryScene,
-    二级场景: item.secondaryScene,
-    归属活动: item.activity,
-    归属子活动: item.subActivity,
-    'Skill 名称': item.skillName,
-    'Skill 说明': item.skillDescription,
-    层级: item.level,
-    '责任 Owner': item.owner,
-    归属部门: item.department,
-    开发责任人: item.developer,
-    计划完成时间: item.plannedFinishDate,
-    当前进展: item.progress,
+    primaryScene: normalizeTextArray(record.primaryScene ?? record.primaryScenes),
+    secondaryScene: normalizeTextArray(record.secondaryScene ?? record.secondaryScenes),
+    activity: normalizeTextArray(record.activity ?? record.activities),
+    subActivity: normalizeTextArray(record.subActivity ?? record.subActivities),
+    level: normalizeTextArray(record.level ?? record.levels),
+    progress: normalizeTextArray(record.progress ?? record.progresses),
   };
+}
+
+function normalizeHttpListResult(response: unknown): SkillPlanningListResult {
+  const data = unwrapResponseData<unknown>(response);
+
+  if (Array.isArray(data)) {
+    const list = Array.isArray((data as { records?: unknown[] }).records)
+      ? ((data as { records?: unknown[] }).records ?? [])
+      : data;
+    const total = readNumber((data as { total?: unknown }).total, list.length);
+    return {
+      list: list.map(normalizeSkillPlanningItem),
+      total,
+    };
+  }
+
+  const record =
+    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+  const list = pickArray(record, ['list', 'records', 'rows', 'items']);
+
+  return {
+    list: list.map(normalizeSkillPlanningItem),
+    total: readNumber(record.total, list.length),
+  };
+}
+
+function normalizeHttpCount(response: unknown): number {
+  const data = unwrapResponseData<unknown>(response);
+  if (typeof data === 'number') {
+    return readNumber(data, 0);
+  }
+
+  const record =
+    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+  return readNumber(
+    record.count ??
+      record.updatedCount ??
+      record.deletedCount ??
+      record.affectedRows ??
+      record.total,
+    0,
+  );
+}
+
+function normalizeHttpImportResult(response: unknown): SkillPlanningImportResult {
+  const data = unwrapResponseData<unknown>(response);
+  const record =
+    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+
+  return {
+    created: readNumber(record.created, 0),
+    missingFields: normalizeTextArray(record.missingFields),
+  };
+}
+
+function normalizeHttpItem(response: unknown): SkillPlanningItem {
+  return normalizeSkillPlanningItem(unwrapResponseData<unknown>(response));
 }
 
 export async function querySkillPlanningFilterOptions(): Promise<SkillPlanningFilterOptions> {
-  return {
-    primaryScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.primaryScene)),
-    secondaryScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.secondaryScene)),
-    activity: distinctValuesInOrder(skillPlanningItems.map((item) => item.activity)),
-    subActivity: distinctValuesInOrder(skillPlanningItems.map((item) => item.subActivity)),
-    level: distinctValuesInOrder(skillPlanningItems.map((item) => item.level)),
-    progress: distinctValuesInOrder(skillPlanningItems.map((item) => item.progress)),
-  };
+  if (!useHttpTransport()) {
+    return (await loadMockService()).querySkillPlanningFilterOptions();
+  }
+
+  const response = await skillBaseService.querySkillPlanningFilterOptions();
+  return normalizeHttpFilterOptions(response);
 }
 
 export async function querySkillPlanningList(
   query: SkillPlanningQuery = {},
 ): Promise<SkillPlanningListResult> {
-  const page = Math.max(1, Number(query.page ?? 1));
-  const pageSize = Math.max(1, Number(query.pageSize ?? 10));
-  const filtered = sortItems(filterItems(query), query);
-  const start = (page - 1) * pageSize;
+  if (!useHttpTransport()) {
+    return (await loadMockService()).querySkillPlanningList(query);
+  }
 
-  return {
-    list: filtered.slice(start, start + pageSize).map(cloneItem),
-    total: filtered.length,
-  };
+  const response = await skillBaseService.querySkillPlanningList(query);
+  return normalizeHttpListResult(response);
 }
 
 export async function queryAllSkillPlanningList(
   query: SkillPlanningQuery = {},
 ): Promise<SkillPlanningItem[]> {
-  return sortItems(filterItems(query), query).map(cloneItem);
+  if (!useHttpTransport()) {
+    return (await loadMockService()).queryAllSkillPlanningList(query);
+  }
+
+  const nextQuery = { ...query };
+  delete nextQuery.page;
+  delete nextQuery.pageSize;
+
+  const pageSize = Math.max(200, readNumber(query.pageSize, 200));
+  const rows: SkillPlanningItem[] = [];
+  let nextPage = 1;
+  let total = Number.POSITIVE_INFINITY;
+
+  while (rows.length < total) {
+    const result = await querySkillPlanningList({
+      ...nextQuery,
+      page: nextPage,
+      pageSize,
+    });
+
+    rows.push(...result.list);
+    total = result.total;
+
+    if (result.list.length === 0 || result.list.length < pageSize) {
+      break;
+    }
+    nextPage += 1;
+  }
+
+  return rows;
 }
 
 export async function createSkillPlanning(
   payload: SkillPlanningPayload,
 ): Promise<SkillPlanningItem> {
-  const item = {
-    id: `plan-${idSeed++}`,
-    ...normalizePayload(payload),
-  };
-  skillPlanningItems = [item, ...skillPlanningItems];
-  return cloneItem(item);
+  if (!useHttpTransport()) {
+    return (await loadMockService()).createSkillPlanning(payload);
+  }
+
+  const response = await skillBaseService.createSkillPlanning(payload);
+  return normalizeHttpItem(response);
 }
 
 export async function updateSkillPlanning(
   id: string,
   payload: SkillPlanningPayload,
 ): Promise<SkillPlanningItem> {
-  const index = skillPlanningItems.findIndex((item) => item.id === id);
-  if (index < 0) {
-    throw new Error('未找到要编辑的 Skill 规划');
+  if (!useHttpTransport()) {
+    return (await loadMockService()).updateSkillPlanning(id, payload);
   }
-  const next = { id, ...normalizePayload(payload) };
-  skillPlanningItems.splice(index, 1, next);
-  return cloneItem(next);
+
+  const response = await skillBaseService.updateSkillPlanning(id, payload);
+  return normalizeHttpItem(response);
 }
 
 export async function deleteSkillPlanning(id: string): Promise<void> {
-  skillPlanningItems = skillPlanningItems.filter((item) => item.id !== id);
+  if (!useHttpTransport()) {
+    return (await loadMockService()).deleteSkillPlanning(id);
+  }
+
+  await skillBaseService.deleteSkillPlanning(id);
 }
 
 export async function batchUpdateSkillPlanning(
   ids: string[],
   patch: SkillPlanningBatchPatch,
 ): Promise<number> {
-  const idSet = new Set(ids);
-  let count = 0;
-  skillPlanningItems = skillPlanningItems.map((item) => {
-    if (!idSet.has(item.id)) {
-      return item;
-    }
-    count += 1;
-    return {
-      ...item,
-      ...Object.fromEntries(
-        Object.entries(patch).filter(([, value]) => normalizeText(value).length > 0),
-      ),
-      progress: patch.progress ? normalizeProgress(patch.progress) : item.progress,
-    };
+  if (!useHttpTransport()) {
+    return (await loadMockService()).batchUpdateSkillPlanning(ids, patch);
+  }
+
+  const response = await skillBaseService.batchUpdateSkillPlanning({
+    ids,
+    ...patch,
+    progress: patch.progress ? normalizeProgress(patch.progress) : undefined,
   });
-  return count;
+  return normalizeHttpCount(response);
 }
 
 export async function batchDeleteSkillPlanning(ids: string[]): Promise<number> {
-  const idSet = new Set(ids);
-  const before = skillPlanningItems.length;
-  skillPlanningItems = skillPlanningItems.filter((item) => !idSet.has(item.id));
-  return before - skillPlanningItems.length;
+  if (!useHttpTransport()) {
+    return (await loadMockService()).batchDeleteSkillPlanning(ids);
+  }
+
+  const response = await skillBaseService.batchDeleteSkillPlanning({ ids });
+  return normalizeHttpCount(response);
 }
 
 export async function importSkillPlanningFromExcel(file: File): Promise<SkillPlanningImportResult> {
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const headerRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
-  const headerSet = new Set((headerRows[0] ?? []).map(normalizeText));
-  const presentKeys = new Set(
-    Array.from(headerSet)
-      .map((header) => skillPlanningFieldMap[header])
-      .filter(Boolean),
-  );
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-  const missingFields = skillPlanningExportHeaders.filter((header) => {
-    const key = skillPlanningFieldMap[header];
-    return !presentKeys.has(key);
-  });
-
-  if (missingFields.length > 0) {
-    return { created: 0, missingFields };
+  if (!useHttpTransport()) {
+    return (await loadMockService()).importSkillPlanningFromExcel(file);
   }
 
-  const imported = rows
-    .map(rowToPayload)
-    .filter((payload) => payload.skillName && payload.department && payload.owner);
-
-  const createdItems = imported.map((payload) => ({
-    id: `plan-${idSeed++}`,
-    ...payload,
-  }));
-
-  skillPlanningItems = [...createdItems, ...skillPlanningItems];
-  return { created: createdItems.length, missingFields: [] };
-}
-
-export async function exportSkillPlanningToExcel(
-  rows: SkillPlanningItem[],
-  filename = 'Skill规划清单.xlsx',
-): Promise<void> {
-  const sheet = XLSX.utils.json_to_sheet(rows.map(itemToExportRow), {
-    header: [...skillPlanningExportHeaders],
-  });
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Skill规划');
-  XLSX.writeFile(workbook, filename);
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await skillBaseService.importSkillPlanning(formData);
+  return normalizeHttpImportResult(response);
 }

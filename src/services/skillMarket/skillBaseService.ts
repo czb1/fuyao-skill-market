@@ -261,6 +261,75 @@ export const skillBaseService = {
   },
 
   /*
+   * Skill 规划相关接口
+   */
+
+  querySkillPlanningFilterOptions: (): any => {
+    return httpRequest.skill<any>({
+      url: '/planning/filter-options',
+      method: 'get',
+    });
+  },
+
+  querySkillPlanningList: (params: any): any => {
+    return httpRequest.skill<any>({
+      url: '/planning',
+      method: 'get',
+      params,
+    });
+  },
+
+  createSkillPlanning: (body: any): any => {
+    return httpRequest.skill<any>({
+      url: '/planning',
+      method: 'post',
+      data: body,
+    });
+  },
+
+  updateSkillPlanning: (id: string, body: any): any => {
+    return httpRequest.skill<any>({
+      url: `/planning/${id}`,
+      method: 'put',
+      data: body,
+    });
+  },
+
+  deleteSkillPlanning: (id: string): any => {
+    return httpRequest.skill<any>({
+      url: `/planning/${id}`,
+      method: 'delete',
+    });
+  },
+
+  batchUpdateSkillPlanning: (body: any): any => {
+    return httpRequest.skill<any>({
+      url: '/planning/batch-update',
+      method: 'post',
+      data: body,
+    });
+  },
+
+  batchDeleteSkillPlanning: (body: any): any => {
+    return httpRequest.skill<any>({
+      url: '/planning/batch-delete',
+      method: 'post',
+      data: body,
+    });
+  },
+
+  importSkillPlanning: (formData: FormData): any => {
+    return httpRequest.skill<any>({
+      url: '/planning/import',
+      method: 'post',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  /*
    * skill评审相关接口
    */
 
