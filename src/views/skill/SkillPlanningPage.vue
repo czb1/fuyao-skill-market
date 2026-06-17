@@ -137,7 +137,7 @@ const planningForm = reactive<SkillPlanningPayload>(createEmptyPlanningForm());
 const batchForm = reactive<SkillPlanningBatchPatch>({
   department: '',
   status: undefined,
-  plannedCompleteDate: '',
+  planedCompleteDate: '',
   developer: '',
 });
 
@@ -198,7 +198,7 @@ function createEmptyPlanningForm(): SkillPlanningPayload {
     owner: '',
     department: '',
     developer: '',
-    plannedCompleteDate: '',
+    planedCompleteDate: '',
     status: '未开始',
   };
 }
@@ -403,7 +403,7 @@ function openEditDialog(row: SkillPlanningItem) {
     owner: row.owner,
     department: row.department,
     developer: row.developer,
-    plannedCompleteDate: row.plannedCompleteDate,
+    planedCompleteDate: row.planedCompleteDate,
     status: row.status,
   });
   formDialogOpen.value = true;
@@ -423,7 +423,7 @@ function validateForm(): boolean {
     'owner',
     'department',
     'developer',
-    'plannedCompleteDate',
+    'planedCompleteDate',
     'status',
   ];
 
@@ -1223,16 +1223,16 @@ onBeforeUnmount(() => {
               <td>{{ row.activityNodeName }}</td>
               <td>{{ row.subActivityNodeName }}</td>
               <td>
-                <strong class="skill-name">{{ row.skillName }}</strong>
+                <strong class="skill-name">{{ row.name }}</strong>
               </td>
               <td class="desc-col">
-                <span :title="row.skillDescription">{{ row.skillDescription }}</span>
+                <span :title="row.skillDescription">{{ row.description }}</span>
               </td>
               <td>{{ row.level }}</td>
               <td>{{ row.owner }}</td>
               <td>{{ row.department }}</td>
-              <td>{{ row.developer }}</td>
-              <td>{{ row.plannedCompleteDate }}</td>
+              <td>{{ row.owner }}</td>
+              <td>{{ row.planedCompleteDate }}</td>
               <td>
                 <span class="status-pill" :class="progressClass(row.status)">
                   {{ row.status }}
@@ -1451,9 +1451,9 @@ onBeforeUnmount(() => {
             </label>
             <label class="planning-field">
               <span>计划完成时间 <em>*</em></span>
-              <input v-model="planningForm.plannedCompleteDate" type="date" />
-              <small v-if="formErrors.plannedCompleteDate">{{
-                formErrors.plannedCompleteDate
+              <input v-model="planningForm.planedCompleteDate" type="date" />
+              <small v-if="formErrors.planedCompleteDate">{{
+                formErrors.planedCompleteDate
               }}</small>
             </label>
             <label class="planning-field">

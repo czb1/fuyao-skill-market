@@ -262,7 +262,7 @@ export const skillBaseService = {
 
   /**
    *
-   * skill 规划相关接口
+   * Skill 规划相关接口
    */
   // skill查询接口
   querySkillConfig: (body: any): any => {
@@ -353,6 +353,7 @@ export const skillBaseService = {
       method: 'get',
     });
   },
+
   /*
    * skill评审相关接口
    */

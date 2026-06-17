@@ -30,7 +30,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '张三',
     department: '平台工具部',
     developer: '李明',
-    plannedCompleteDate: '2026-07-15',
+    planedCompleteDate: '2026-07-15',
     status: '开发中',
   },
   {
@@ -45,7 +45,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '李四',
     department: '质量工具组',
     developer: '周扬',
-    plannedCompleteDate: '2026-08-05',
+    planedCompleteDate: '2026-08-05',
     status: '未开始',
   },
   {
@@ -60,7 +60,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '王五',
     department: '数据平台部',
     developer: '陈七',
-    plannedCompleteDate: '2026-06-30',
+    planedCompleteDate: '2026-06-30',
     status: '联调中',
   },
   {
@@ -75,7 +75,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '赵六',
     department: '研发效能部',
     developer: '刘岚',
-    plannedCompleteDate: '2026-07-28',
+    planedCompleteDate: '2026-07-28',
     status: '开发中',
   },
   {
@@ -90,7 +90,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '钱慧',
     department: '云平台部',
     developer: '吴越',
-    plannedCompleteDate: '2026-06-20',
+    planedCompleteDate: '2026-06-20',
     status: '已延期',
   },
   {
@@ -105,7 +105,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '孙宇',
     department: '客户成功部',
     developer: '高宁',
-    plannedCompleteDate: '2026-09-10',
+    planedCompleteDate: '2026-09-10',
     status: '未开始',
   },
   {
@@ -120,7 +120,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '何佳',
     department: '平台工具部',
     developer: '许安',
-    plannedCompleteDate: '2026-08-18',
+    planedCompleteDate: '2026-08-18',
     status: '开发中',
   },
   {
@@ -135,7 +135,7 @@ const initialSkillPlanningItems: SkillPlanningItem[] = [
     owner: '郑欣',
     department: '质量工具组',
     developer: '马可',
-    plannedCompleteDate: '2026-07-08',
+    planedCompleteDate: '2026-07-08',
     status: '已完成',
   },
 ];
@@ -144,7 +144,7 @@ let skillPlanningItems = [...initialSkillPlanningItems];
 let idSeed = 2000;
 
 function matchesDateRange(item: SkillPlanningItem, query: SkillPlanningQuery): boolean {
-  const date = item.plannedCompleteDate;
+  const date = item.planedCompleteDate;
   if (query.plannedStartDate && date < query.plannedStartDate) {
     return false;
   }
@@ -167,13 +167,13 @@ function matchesDiscreteFilter(value: string, singleValue: string, multiValues: 
 }
 
 function sortItems(items: SkillPlanningItem[], query: SkillPlanningQuery): SkillPlanningItem[] {
-  if (query.sortBy !== 'plannedCompleteDate' || !query.sortOrder) {
+  if (query.sortBy !== 'planedCompleteDate' || !query.sortOrder) {
     return items;
   }
 
   const sorted = [...items];
   sorted.sort((left, right) => {
-    const result = left.plannedCompleteDate.localeCompare(right.plannedCompleteDate);
+    const result = left.planedCompleteDate.localeCompare(right.planedCompleteDate);
     return query.sortOrder === 'asc' ? result : -result;
   });
   return sorted;

@@ -519,40 +519,29 @@ type ReviewTaskPageResult = {
   total: number;
 };
 
-async function fetchReviewTaskPage(pageNo: number): Promise<ReviewTaskPageResult> {
+async function fetchReviewTaskPage(pageNum: number): Promise<ReviewTaskPageResult> {
   const params = syncReviewListFilterObj();
 
   if (reviewTransportIsHttp) {
     const response = await skillBaseService.getSkillReviewList({
       ...params,
-      pageNo,
+      pageNum,
       pageSize: REVIEW_TASK_PAGE_SIZE,
     });
     if (!serviceSucceeded(response)) {
       throw new Error(serviceMessage(response, '评审 Skill 列表加载失败'));
     }
 
-    const payload = response?.data;
-    const payloadRecord = readRecord(payload);
-    const rawList = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payloadRecord.list)
-        ? payloadRecord.list
-        : Array.isArray(payloadRecord.records)
-          ? payloadRecord.records
-          : [];
-    const total = Number(payloadRecord.total ?? response?.meta?.number ?? rawList.length);
+    const total = response.data.total;
 
     return {
-      list: rawList.map((item, index) =>
-        normalizeReviewTaskCard(item, (pageNo - 1) * REVIEW_TASK_PAGE_SIZE + index),
-      ),
-      total: Number.isFinite(total) ? total : rawList.length,
+      list: response.data.list,
+      total: total,
     };
   }
 
   const data = await loadReviewCenterData(params, isExpertReviewer.value);
-  const start = (pageNo - 1) * REVIEW_TASK_PAGE_SIZE;
+  const start = (pageNum - 1) * REVIEW_TASK_PAGE_SIZE;
   return {
     data,
     list: data.taskCards.slice(start, start + REVIEW_TASK_PAGE_SIZE).map((task) => ({ ...task })),
@@ -1040,7 +1029,7 @@ function prependExpertReviewHistory(detail: SkillExpertReviewDetailDto): void {
   ];
 }
 
-async function loadActiveTaskReviewContext(taskId: string): Promise<void> {
+async function loadActiveTaskReviewContext(taskId: string, version: string): Promise<void> {
   if (!taskId) {
     return;
   }
@@ -1050,6 +1039,7 @@ async function loadActiveTaskReviewContext(taskId: string): Promise<void> {
     await loadExpertReviewMeta();
     const skillDetailRes = await skillBaseService.getSkillReviewDetail(taskId, {
       userId: props.userId,
+      version: version,
     });
     if (!serviceSucceeded(skillDetailRes) || !skillDetailRes?.data) {
       throw new Error(serviceMessage(skillDetailRes, '评审详情加载失败'));
@@ -1071,9 +1061,9 @@ async function loadActiveTaskReviewContext(taskId: string): Promise<void> {
   }
 }
 
-async function selectTask(taskId: string) {
-  selectedTaskId.value = taskId;
-  await loadActiveTaskReviewContext(taskId);
+async function selectTask(task: any) {
+  selectedTaskId.value = task.skillId;
+  await loadActiveTaskReviewContext(task.skillId, task.version);
 }
 
 async function saveExpertReviewDraft(): Promise<void> {
@@ -1644,9 +1634,9 @@ onBeforeUnmount(() => {
                 role="button"
                 tabindex="0"
                 :aria-pressed="selectedTaskId === task.skillId"
-                @click="selectTask(task.skillId)"
-                @keydown.enter.prevent="selectTask(task.skillId)"
-                @keydown.space.prevent="selectTask(task.skillId)"
+                @click="selectTask(task)"
+                @keydown.enter.prevent="selectTask(task)"
+                @keydown.space.prevent="selectTask(task)"
               >
                 <div class="task-card__title">{{ task.name }}</div>
                 <div class="task-card__meta">{{ task.ownerUser }} · {{ task.departmentL6 }}</div>
@@ -1748,7 +1738,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="ai-review-score">
                   <div>
-                    <strong>{{ selectedSkillDetail.value?.aiScore / 100 }}</strong>
+                    <strong>{{ selectedSkillDetail?.aiScore?.aiScore ?? '暂无评分' }}</strong>
                     <span>/ 100</span>
                   </div>
                   <em>20-30-20-10-20</em>

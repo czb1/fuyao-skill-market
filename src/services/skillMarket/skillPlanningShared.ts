@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 
 export type SkillPlanningProgress = '未开始' | '开发中' | '联调中' | '已完成' | '已延期';
-export type SkillPlanningSortField = 'plannedCompleteDate';
+export type SkillPlanningSortField = 'planedCompleteDate';
 export type SkillPlanningSortOrder = 'asc' | 'desc';
 
 export interface SkillPlanningItem {
@@ -16,7 +16,7 @@ export interface SkillPlanningItem {
   owner: string;
   department: string;
   developer: string;
-  plannedCompleteDate: string;
+  planedCompleteDate: string;
   status: SkillPlanningProgress;
 }
 
@@ -71,7 +71,7 @@ export interface SkillPlanningImportResult {
 
 export type SkillPlanningPayload = Omit<SkillPlanningItem, 'id'>;
 export type SkillPlanningBatchPatch = Partial<
-  Pick<SkillPlanningItem, 'department' | 'status' | 'plannedCompleteDate' | 'developer'>
+  Pick<SkillPlanningItem, 'department' | 'status' | 'planedCompleteDate' | 'developer'>
 >;
 
 export const skillPlanningFieldMap: Record<string, keyof SkillPlanningPayload> = {
@@ -92,7 +92,7 @@ export const skillPlanningFieldMap: Record<string, keyof SkillPlanningPayload> =
   责任Owener: 'owner',
   归属部门: 'department',
   开发责任人: 'developer',
-  计划完成时间: 'plannedCompleteDate',
+  计划完成时间: 'planedCompleteDate',
   当前进展: 'status',
 };
 
@@ -145,7 +145,7 @@ export function createEmptySkillPlanningPayload(): SkillPlanningPayload {
     owner: '',
     department: '',
     developer: '',
-    plannedCompleteDate: '',
+    planedCompleteDate: '',
     status: defaultProgress,
   };
 }
@@ -164,7 +164,7 @@ export function normalizeSkillPlanningPayload(
     owner: normalizeText(payload.owner),
     department: normalizeText(payload.department),
     developer: normalizeText(payload.developer),
-    plannedCompleteDate: normalizeText(payload.plannedCompleteDate),
+    planedCompleteDate: normalizeText(payload.planedCompleteDate),
     status: normalizeProgress(payload.status),
   };
 }
@@ -187,7 +187,7 @@ export function normalizeSkillPlanningItem(value: unknown): SkillPlanningItem {
     owner: normalizeText(record.owner),
     department: normalizeText(record.department),
     developer: normalizeText(record.developer),
-    plannedCompleteDate: normalizeText(record.plannedCompleteDate),
+    planedCompleteDate: normalizeText(record.planedCompleteDate),
     status: normalizeProgress(record.status),
   };
 }
@@ -218,7 +218,7 @@ export function itemToSkillPlanningExportRow(item: SkillPlanningItem): Record<st
     '责任 Owner': item.owner,
     归属部门: item.department,
     开发责任人: item.developer,
-    计划完成时间: item.plannedCompleteDate,
+    计划完成时间: item.planedCompleteDate,
     当前进展: item.status,
   };
 }
