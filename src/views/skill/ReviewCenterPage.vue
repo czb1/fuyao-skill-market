@@ -38,9 +38,10 @@ const props = withDefaults(
 const rankingCards = ref<ReviewRankingCard[]>([]);
 const taskCards = reactive<ReviewTaskCard[]>([]);
 const reviewTaskListRef = ref<HTMLElement | null>(null);
-const reviewTransportIsHttp = String(import.meta.env.VITE_SKILL_MARKET_TRANSPORT ?? 'mock')
-  .trim()
-  .toLowerCase() === 'http';
+const reviewTransportIsHttp =
+  String(import.meta.env.VITE_SKILL_MARKET_TRANSPORT ?? 'mock')
+    .trim()
+    .toLowerCase() === 'http';
 const reviewTaskPageNo = ref(0);
 const reviewTaskTotal = ref(0);
 const reviewTaskLoading = ref(false);
@@ -392,7 +393,9 @@ function normalizeReviewTaskCard(task: unknown, fallbackIndex: number): ReviewTa
   const record = readRecord(task);
   const skillId = String(record.skillId ?? record.id ?? `review-skill-${fallbackIndex}`);
   const name = String(record.name ?? record.skillName ?? skillId);
-  const owner = String(record.owner ?? record.ownerName ?? record.ownerUser ?? record.createdBy ?? '');
+  const owner = String(
+    record.owner ?? record.ownerName ?? record.ownerUser ?? record.createdBy ?? '',
+  );
   const ownerUser = String(record.ownerUser ?? record.ownerName ?? record.owner ?? owner);
   const department = String(
     record.DepartmentL6 ??
@@ -403,7 +406,9 @@ function normalizeReviewTaskCard(task: unknown, fallbackIndex: number): ReviewTa
       '',
   );
   const rawScore = Number(record.overallScore ?? record.totalScore ?? record.expertScore);
-  const statusText = String(record.reviewStatus ?? record.status ?? '').trim().toLowerCase();
+  const statusText = String(record.reviewStatus ?? record.status ?? '')
+    .trim()
+    .toLowerCase();
   const hasReviewed =
     typeof record.hasReviewed === 'boolean'
       ? record.hasReviewed
@@ -558,7 +563,7 @@ async function fetchReviewTaskPage(pageNo: number): Promise<ReviewTaskPageResult
 async function syncSelectedTaskAfterListChange(previousSelectedTaskId: string): Promise<void> {
   const nextSelectedTaskId = taskCards.some((task) => task.skillId === previousSelectedTaskId)
     ? previousSelectedTaskId
-    : taskCards[0]?.skillId ?? '';
+    : (taskCards[0]?.skillId ?? '');
 
   const shouldReloadDetail =
     Boolean(nextSelectedTaskId) &&
@@ -667,6 +672,7 @@ const activeMetrics = computed(() => {
 
   return [
     // { label: '使用量', value: task.usage, tone: 'blue' },
+    { label: '版本', value: task.version, tone: 'blue' },
     { label: '下载量', value: task.downloads, tone: 'cyan' },
     // {
     //   label: '专家评审得分',
@@ -1049,6 +1055,12 @@ async function loadActiveTaskReviewContext(taskId: string): Promise<void> {
       throw new Error(serviceMessage(skillDetailRes, '评审详情加载失败'));
     }
     selectedSkillDetail.value = skillDetailRes.data;
+    if (!selectedSkillDetail.value?.aiScore) {
+      // 判断到没有AI评分，就去触发AI评审
+      await skillBaseService.refreshAIReview().then((res) => {
+        console.log('触发AI评审res', res);
+      });
+    }
     applyExpertReviewDetail(skillDetailRes.data as SkillExpertReviewDetailDto);
   } catch (e) {
     selectedSkillDetail.value = {};
@@ -1635,9 +1647,9 @@ onBeforeUnmount(() => {
                 @click="selectTask(task.skillId)"
                 @keydown.enter.prevent="selectTask(task.skillId)"
                 @keydown.space.prevent="selectTask(task.skillId)"
-                >
+              >
                 <div class="task-card__title">{{ task.name }}</div>
-                <div class="task-card__meta">{{ task.ownerUser }} · {{ task.DepartmentL6 }}</div>
+                <div class="task-card__meta">{{ task.ownerUser }} · {{ task.departmentL6 }}</div>
                 <div class="task-card__tags">
                   <span
                     v-for="tag in task.tags ? task.tags.split(',').filter(Boolean) : []"
@@ -1694,7 +1706,7 @@ onBeforeUnmount(() => {
                 <div>
                   <h2>SKILL 评测维度说明</h2>
                   <p>
-                    扶摇平台评测体系从技能边界定义完整性、接口规范完整性、异常与边界处理、规则一致性、安全与权限约束六个维度评估
+                    扶摇平台评测体系从技能边界定义完整性、接口规范完整性、异常与边界处理、规则一致性、安全与权限约束五个维度评估
                     Skill 质量
                   </p>
                 </div>

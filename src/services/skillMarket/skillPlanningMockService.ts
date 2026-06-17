@@ -20,123 +20,123 @@ import {
 const initialSkillPlanningItems: SkillPlanningItem[] = [
   {
     id: 'plan-1001',
-    primaryScene: '研发提效',
-    secondaryScene: '代码生成',
-    activity: '需求研发',
-    subActivity: '接口开发',
+    firstScene: '研发提效',
+    secondScene: '代码生成',
+    activityNodeName: '需求研发',
+    subActivityNodeName: '接口开发',
     skillName: '接口 Mock 生成 Skill',
     skillDescription: '根据接口定义自动生成 Mock 数据和联调示例，减少前后端等待时间。',
     level: '平台级',
     owner: '张三',
     department: '平台工具部',
     developer: '李明',
-    plannedFinishDate: '2026-07-15',
-    progress: '开发中',
+    plannedCompleteDate: '2026-07-15',
+    status: '开发中',
   },
   {
     id: 'plan-1002',
-    primaryScene: '质量保障',
-    secondaryScene: '测试设计',
-    activity: '测试验证',
-    subActivity: '用例生成',
+    firstScene: '质量保障',
+    secondScene: '测试设计',
+    activityNodeName: '测试验证',
+    subActivityNodeName: '用例生成',
     skillName: '测试用例评审 Skill',
     skillDescription: '围绕需求说明和历史缺陷生成测试用例评审建议，提升测试覆盖完整度。',
     level: '部门级',
     owner: '李四',
     department: '质量工具组',
     developer: '周扬',
-    plannedFinishDate: '2026-08-05',
-    progress: '未开始',
+    plannedCompleteDate: '2026-08-05',
+    status: '未开始',
   },
   {
     id: 'plan-1003',
-    primaryScene: '运营分析',
-    secondaryScene: '日志洞察',
-    activity: '线上运营',
-    subActivity: '异常定位',
+    firstScene: '运营分析',
+    secondScene: '日志洞察',
+    activityNodeName: '线上运营',
+    subActivityNodeName: '异常定位',
     skillName: '日志分析 Skill',
     skillDescription: '汇总异常日志、调用链和发布记录，输出可执行的问题定位摘要。',
     level: '组织级',
     owner: '王五',
     department: '数据平台部',
     developer: '陈七',
-    plannedFinishDate: '2026-06-30',
-    progress: '联调中',
+    plannedCompleteDate: '2026-06-30',
+    status: '联调中',
   },
   {
     id: 'plan-1004',
-    primaryScene: '知识管理',
-    secondaryScene: '文档沉淀',
-    activity: '交付复盘',
-    subActivity: '知识入库',
+    firstScene: '知识管理',
+    secondScene: '文档沉淀',
+    activityNodeName: '交付复盘',
+    subActivityNodeName: '知识入库',
     skillName: '会议纪要沉淀 Skill',
     skillDescription: '从会议记录中抽取决策、风险、待办和关联文档，自动整理到团队知识库。',
     level: '部门级',
     owner: '赵六',
     department: '研发效能部',
     developer: '刘岚',
-    plannedFinishDate: '2026-07-28',
-    progress: '开发中',
+    plannedCompleteDate: '2026-07-28',
+    status: '开发中',
   },
   {
     id: 'plan-1005',
-    primaryScene: '发布运维',
-    secondaryScene: '变更管控',
-    activity: '版本发布',
-    subActivity: '发布检查',
+    firstScene: '发布运维',
+    secondScene: '变更管控',
+    activityNodeName: '版本发布',
+    subActivityNodeName: '发布检查',
     skillName: '发布风险检查 Skill',
     skillDescription: '结合发布单、代码变更和历史事故，生成发布前风险检查清单。',
     level: '平台级',
     owner: '钱慧',
     department: '云平台部',
     developer: '吴越',
-    plannedFinishDate: '2026-06-20',
-    progress: '已延期',
+    plannedCompleteDate: '2026-06-20',
+    status: '已延期',
   },
   {
     id: 'plan-1006',
-    primaryScene: '用户支持',
-    secondaryScene: '问答助手',
-    activity: '服务支持',
-    subActivity: '问题分流',
+    firstScene: '用户支持',
+    secondScene: '问答助手',
+    activityNodeName: '服务支持',
+    subActivityNodeName: '问题分流',
     skillName: '工单智能分派 Skill',
     skillDescription: '按问题类型、系统模块和处理经验自动推荐承接团队与处理路径。',
     level: '组织级',
     owner: '孙宇',
     department: '客户成功部',
     developer: '高宁',
-    plannedFinishDate: '2026-09-10',
-    progress: '未开始',
+    plannedCompleteDate: '2026-09-10',
+    status: '未开始',
   },
   {
     id: 'plan-1007',
-    primaryScene: '研发提效',
-    secondaryScene: '代码审查',
-    activity: '需求研发',
-    subActivity: '合并评审',
+    firstScene: '研发提效',
+    secondScene: '代码审查',
+    activityNodeName: '需求研发',
+    subActivityNodeName: '合并评审',
     skillName: '代码评审摘要 Skill',
     skillDescription: '生成代码改动摘要、风险点和建议关注文件，辅助 reviewer 快速进入上下文。',
     level: '个人级',
     owner: '何佳',
     department: '平台工具部',
     developer: '许安',
-    plannedFinishDate: '2026-08-18',
-    progress: '开发中',
+    plannedCompleteDate: '2026-08-18',
+    status: '开发中',
   },
   {
     id: 'plan-1008',
-    primaryScene: '质量保障',
-    secondaryScene: '缺陷复盘',
-    activity: '问题闭环',
-    subActivity: '根因分析',
+    firstScene: '质量保障',
+    secondScene: '缺陷复盘',
+    activityNodeName: '问题闭环',
+    subActivityNodeName: '根因分析',
     skillName: '缺陷根因归纳 Skill',
     skillDescription: '对缺陷描述、提交记录和修复方案进行归纳，输出可复用的质量改进建议。',
     level: '部门级',
     owner: '郑欣',
     department: '质量工具组',
     developer: '马可',
-    plannedFinishDate: '2026-07-08',
-    progress: '已完成',
+    plannedCompleteDate: '2026-07-08',
+    status: '已完成',
   },
 ];
 
@@ -144,7 +144,7 @@ let skillPlanningItems = [...initialSkillPlanningItems];
 let idSeed = 2000;
 
 function matchesDateRange(item: SkillPlanningItem, query: SkillPlanningQuery): boolean {
-  const date = item.plannedFinishDate;
+  const date = item.plannedCompleteDate;
   if (query.plannedStartDate && date < query.plannedStartDate) {
     return false;
   }
@@ -167,13 +167,13 @@ function matchesDiscreteFilter(value: string, singleValue: string, multiValues: 
 }
 
 function sortItems(items: SkillPlanningItem[], query: SkillPlanningQuery): SkillPlanningItem[] {
-  if (query.sortBy !== 'plannedFinishDate' || !query.sortOrder) {
+  if (query.sortBy !== 'plannedCompleteDate' || !query.sortOrder) {
     return items;
   }
 
   const sorted = [...items];
   sorted.sort((left, right) => {
-    const result = left.plannedFinishDate.localeCompare(right.plannedFinishDate);
+    const result = left.plannedCompleteDate.localeCompare(right.plannedCompleteDate);
     return query.sortOrder === 'asc' ? result : -result;
   });
   return sorted;
@@ -204,22 +204,23 @@ function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
       .map(normalizeText)
       .find(Boolean) ||
     '';
-  const primaryScene = normalizeText(query.primaryScene);
-  const secondaryScene = normalizeText(query.secondaryScene);
-  const activity = normalizeText(query.activity);
-  const subActivity = normalizeText(query.subActivity);
+  const firstScene = normalizeText(query.firstScene);
+  const secondScene = normalizeText(query.secondScene);
+  const activityNodeName = normalizeText(query.activityNodeName);
+  const subActivityNodeName = normalizeText(query.subActivityNodeName);
   const level = normalizeText(query.level);
-  const progress = normalizeText(query.progress);
+  const status = normalizeText(query.status);
   const owner = normalizeText(query.owner);
 
   return skillPlanningItems.filter((item) => {
     if (department && item.department !== department) return false;
-    if (!matchesDiscreteFilter(item.primaryScene, primaryScene, primaryScenes)) return false;
-    if (!matchesDiscreteFilter(item.secondaryScene, secondaryScene, secondaryScenes)) return false;
-    if (!matchesDiscreteFilter(item.activity, activity, activities)) return false;
-    if (!matchesDiscreteFilter(item.subActivity, subActivity, subActivities)) return false;
+    if (!matchesDiscreteFilter(item.firstScene, firstScene, primaryScenes)) return false;
+    if (!matchesDiscreteFilter(item.secondScene, secondScene, secondaryScenes)) return false;
+    if (!matchesDiscreteFilter(item.activityNodeName, activityNodeName, activities)) return false;
+    if (!matchesDiscreteFilter(item.subActivityNodeName, subActivityNodeName, subActivities))
+      return false;
     if (!matchesDiscreteFilter(item.level, level, levels)) return false;
-    if (!matchesDiscreteFilter(item.progress, progress, progresses)) return false;
+    if (!matchesDiscreteFilter(item.status, status, progresses)) return false;
     if (owner && !item.owner.includes(owner)) return false;
     if (!matchesDateRange(item, query)) return false;
     if (!keyword) return true;
@@ -233,22 +234,26 @@ function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
 
 export async function querySkillPlanningFilterOptions(): Promise<SkillPlanningFilterOptions> {
   return {
-    primaryScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.primaryScene)),
-    secondaryScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.secondaryScene)),
-    activity: distinctValuesInOrder(skillPlanningItems.map((item) => item.activity)),
-    subActivity: distinctValuesInOrder(skillPlanningItems.map((item) => item.subActivity)),
+    firstScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.firstScene)),
+    secondScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.secondScene)),
+    activityNodeName: distinctValuesInOrder(
+      skillPlanningItems.map((item) => item.activityNodeName),
+    ),
+    subActivityNodeName: distinctValuesInOrder(
+      skillPlanningItems.map((item) => item.subActivityNodeName),
+    ),
     level: distinctValuesInOrder(skillPlanningItems.map((item) => item.level)),
-    progress: distinctValuesInOrder(skillPlanningItems.map((item) => item.progress)),
+    status: distinctValuesInOrder(skillPlanningItems.map((item) => item.status)),
   };
 }
 
 export async function querySkillPlanningList(
   query: SkillPlanningQuery = {},
 ): Promise<SkillPlanningListResult> {
-  const page = Math.max(1, Number(query.page ?? 1));
+  const pageNum = Math.max(1, Number(query.pageNum ?? 1));
   const pageSize = Math.max(1, Number(query.pageSize ?? 10));
   const filtered = sortItems(filterItems(query), query);
-  const start = (page - 1) * pageSize;
+  const start = (pageNum - 1) * pageSize;
 
   return {
     list: filtered.slice(start, start + pageSize).map(cloneSkillPlanningItem),
@@ -308,7 +313,7 @@ export async function batchUpdateSkillPlanning(
       ...Object.fromEntries(
         Object.entries(patch).filter(([, value]) => normalizeText(value).length > 0),
       ),
-      progress: patch.progress ? normalizeProgress(patch.progress) : item.progress,
+      status: patch.status ? normalizeProgress(patch.status) : item.status,
     };
   });
   return count;

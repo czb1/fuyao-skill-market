@@ -30,9 +30,11 @@ export type {
 type SkillPlanningMockModule = typeof import('./skillPlanningMockService');
 
 function useHttpTransport(): boolean {
-  return String(import.meta.env.VITE_SKILL_MARKET_TRANSPORT ?? 'mock')
-    .trim()
-    .toLowerCase() === 'http';
+  return (
+    String(import.meta.env.VITE_SKILL_MARKET_TRANSPORT ?? 'mock')
+      .trim()
+      .toLowerCase() === 'http'
+  );
 }
 
 async function loadMockService(): Promise<SkillPlanningMockModule> {
@@ -65,15 +67,17 @@ function pickArray(record: Record<string, unknown>, keys: string[]): unknown[] {
 function normalizeHttpFilterOptions(response: unknown): SkillPlanningFilterOptions {
   const data = unwrapResponseData<unknown>(response);
   const record =
-    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+    data && typeof data === 'object'
+      ? (data as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
 
   return {
-    primaryScene: normalizeTextArray(record.primaryScene ?? record.primaryScenes),
-    secondaryScene: normalizeTextArray(record.secondaryScene ?? record.secondaryScenes),
-    activity: normalizeTextArray(record.activity ?? record.activities),
-    subActivity: normalizeTextArray(record.subActivity ?? record.subActivities),
+    firstScene: normalizeTextArray(record.firstScene ?? record.firstScenes),
+    secondScene: normalizeTextArray(record.secondScene ?? record.secondaryScenes),
+    activityNodeName: normalizeTextArray(record.activityNodeName ?? record.activities),
+    subActivityNodeName: normalizeTextArray(record.subActivityNodeName ?? record.subActivities),
     level: normalizeTextArray(record.level ?? record.levels),
-    progress: normalizeTextArray(record.progress ?? record.progresses),
+    status: normalizeTextArray(record.status ?? record.progresses),
   };
 }
 
@@ -92,7 +96,9 @@ function normalizeHttpListResult(response: unknown): SkillPlanningListResult {
   }
 
   const record =
-    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+    data && typeof data === 'object'
+      ? (data as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
   const list = pickArray(record, ['list', 'records', 'rows', 'items']);
 
   return {
@@ -108,7 +114,9 @@ function normalizeHttpCount(response: unknown): number {
   }
 
   const record =
-    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+    data && typeof data === 'object'
+      ? (data as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
   return readNumber(
     record.count ??
       record.updatedCount ??
@@ -122,7 +130,9 @@ function normalizeHttpCount(response: unknown): number {
 function normalizeHttpImportResult(response: unknown): SkillPlanningImportResult {
   const data = unwrapResponseData<unknown>(response);
   const record =
-    data && typeof data === 'object' ? (data as Record<string, unknown>) : ({} as Record<string, unknown>);
+    data && typeof data === 'object'
+      ? (data as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
 
   return {
     created: readNumber(record.created, 0),
@@ -162,7 +172,7 @@ export async function queryAllSkillPlanningList(
   }
 
   const nextQuery = { ...query };
-  delete nextQuery.page;
+  delete nextQuery.pageNum;
   delete nextQuery.pageSize;
 
   const pageSize = Math.max(200, readNumber(query.pageSize, 200));
@@ -173,7 +183,7 @@ export async function queryAllSkillPlanningList(
   while (rows.length < total) {
     const result = await querySkillPlanningList({
       ...nextQuery,
-      page: nextPage,
+      pageNum: nextPage,
       pageSize,
     });
 
@@ -231,7 +241,7 @@ export async function batchUpdateSkillPlanning(
   const response = await skillBaseService.batchUpdateSkillPlanning({
     ids,
     ...patch,
-    progress: patch.progress ? normalizeProgress(patch.progress) : undefined,
+    status: patch.status ? normalizeProgress(patch.status) : undefined,
   });
   return normalizeHttpCount(response);
 }

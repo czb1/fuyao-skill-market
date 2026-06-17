@@ -368,6 +368,14 @@ export const skillBaseService = {
     });
   },
 
+  // 触发AI评审
+  refreshAIReview: (): any => {
+    return httpRequest.skill<any>({
+      url: `/review/ai-score/refresh`,
+      method: 'get',
+    });
+  },
+
   // 获取AI评审维度
   getAIReviewDimension: (): any => {
     return httpRequest.skill<any>({
@@ -415,6 +423,19 @@ export const skillBaseService = {
   archiveQualityReview: (body: any): any => {
     return httpRequest.api<any>({
       url: '/skill-quality-reviews/archive',
+      method: 'post',
+      data: body,
+    });
+  },
+
+  /**
+   *
+   * skill 规划相关接口
+   */
+  // skill查询接口
+  querySkillConfig: (body: any): any => {
+    return httpRequest.skill<any>({
+      url: '/config/query',
       method: 'post',
       data: body,
     });

@@ -27,12 +27,12 @@ type PlanningDepartmentTreeNode = {
   children?: PlanningDepartmentTreeNode[];
 };
 type PlanningHeaderFilterKey =
-  | 'primaryScene'
-  | 'secondaryScene'
-  | 'activity'
-  | 'subActivity'
+  | 'firstScene'
+  | 'secondScene'
+  | 'activityNodeName'
+  | 'subActivityNodeName'
   | 'level'
-  | 'progress';
+  | 'status';
 type PlanningHeaderFilterSelections = Record<PlanningHeaderFilterKey, string[]>;
 
 const props = withDefaults(
@@ -52,12 +52,12 @@ const progressOptions = ref<SkillPlanningProgress[]>([
   '已延期',
 ]);
 const planningHeaderFilterKeys = [
-  'primaryScene',
-  'secondaryScene',
-  'activity',
-  'subActivity',
+  'firstScene',
+  'secondScene',
+  'activityNodeName',
+  'subActivityNodeName',
   'level',
-  'progress',
+  'status',
 ] as const;
 const pageSizeOptions = [5, 10, 20, 50];
 
@@ -69,12 +69,12 @@ const emptyFilters = {
   DepartmentL4: '',
   DepartmentL5: '',
   DepartmentL6: '',
-  primaryScene: '',
-  secondaryScene: '',
-  activity: '',
-  subActivity: '',
+  firstScene: '',
+  secondScene: '',
+  activityNodeName: '',
+  subActivityNodeName: '',
   level: '',
-  progress: '',
+  status: '',
   owner: '',
   plannedStartDate: '',
   plannedEndDate: '',
@@ -101,7 +101,7 @@ const planningDepartmentLevelRefs = [
 ] as const;
 const rows = ref<SkillPlanningItem[]>([]);
 const total = ref(0);
-const page = ref(1);
+const pageNum = ref(1);
 const pageSize = ref(10);
 const loading = ref(false);
 const selectedIds = ref<string[]>([]);
@@ -112,12 +112,12 @@ const subActivityOptions = ref<string[]>([]);
 const levelOptions = ref<string[]>([]);
 const headerFilterOpenKey = ref<PlanningHeaderFilterKey | null>(null);
 const headerFilterSelections = reactive<PlanningHeaderFilterSelections>({
-  primaryScene: [],
-  secondaryScene: [],
-  activity: [],
-  subActivity: [],
+  firstScene: [],
+  secondScene: [],
+  activityNodeName: [],
+  subActivityNodeName: [],
   level: [],
-  progress: [],
+  status: [],
 });
 const plannedFinishSortOrder = ref<SkillPlanningSortOrder | ''>('');
 const importInputRef = ref<HTMLInputElement | null>(null);
@@ -138,8 +138,8 @@ const planningForm = reactive<SkillPlanningPayload>(createEmptyPlanningForm());
 const batchDialogOpen = ref(false);
 const batchForm = reactive<SkillPlanningBatchPatch>({
   department: '',
-  progress: undefined,
-  plannedFinishDate: '',
+  status: undefined,
+  plannedCompleteDate: '',
   developer: '',
 });
 
@@ -152,8 +152,10 @@ const confirmDialog = reactive({
 });
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
-const pageStart = computed(() => (total.value === 0 ? 0 : (page.value - 1) * pageSize.value + 1));
-const pageEnd = computed(() => Math.min(total.value, page.value * pageSize.value));
+const pageStart = computed(() =>
+  total.value === 0 ? 0 : (pageNum.value - 1) * pageSize.value + 1,
+);
+const pageEnd = computed(() => Math.min(total.value, pageNum.value * pageSize.value));
 const allPageSelected = computed(
   () => rows.value.length > 0 && rows.value.every((row) => selectedIds.value.includes(row.id)),
 );
@@ -166,12 +168,12 @@ const selectedImportFileSize = computed(() => {
   return size >= 1024 ? `${(size / 1024).toFixed(2)} MB` : `${Math.max(1, Math.round(size))} KB`;
 });
 const planningHeaderFilterOptions = computed<SkillPlanningFilterOptions>(() => ({
-  primaryScene: primarySceneOptions.value,
-  secondaryScene: secondarySceneOptions.value,
-  activity: activityOptions.value,
-  subActivity: subActivityOptions.value,
+  firstScene: primarySceneOptions.value,
+  secondScene: secondarySceneOptions.value,
+  activityNodeName: activityOptions.value,
+  subActivityNodeName: subActivityOptions.value,
   level: levelOptions.value,
-  progress: progressOptions.value,
+  status: progressOptions.value,
 }));
 const hasActivePlanningHeaderFilters = computed(() =>
   planningHeaderFilterKeys.some((key) => headerFilterSelections[key].length > 0),
@@ -188,18 +190,18 @@ const plannedFinishSortLabel = computed(() => {
 
 function createEmptyPlanningForm(): SkillPlanningPayload {
   return {
-    primaryScene: '',
-    secondaryScene: '',
-    activity: '',
-    subActivity: '',
+    firstScene: '',
+    secondScene: '',
+    activityNodeName: '',
+    subActivityNodeName: '',
     skillName: '',
     skillDescription: '',
     level: '',
     owner: '',
     department: '',
     developer: '',
-    plannedFinishDate: '',
-    progress: '未开始',
+    plannedCompleteDate: '',
+    status: '未开始',
   };
 }
 
@@ -222,12 +224,12 @@ function syncPlanningHeaderFilterSelections(options: SkillPlanningFilterOptions)
 
 async function loadPlanningFilterOptions(): Promise<void> {
   const options = await querySkillPlanningFilterOptions();
-  primarySceneOptions.value = options.primaryScene;
-  secondarySceneOptions.value = options.secondaryScene;
-  activityOptions.value = options.activity;
-  subActivityOptions.value = options.subActivity;
+  primarySceneOptions.value = options.firstScene;
+  secondarySceneOptions.value = options.secondScene;
+  activityOptions.value = options.activityNodeName;
+  subActivityOptions.value = options.subActivityNodeName;
   levelOptions.value = options.level;
-  progressOptions.value = options.progress as SkillPlanningProgress[];
+  progressOptions.value = options.status as SkillPlanningProgress[];
   syncPlanningHeaderFilterSelections(options);
 }
 
@@ -248,7 +250,7 @@ function toggleHeaderFilterMenu(key: PlanningHeaderFilterKey): void {
 }
 
 async function applyPlanningTableFilters(): Promise<void> {
-  page.value = 1;
+  pageNum.value = 1;
   await reloadList();
 }
 
@@ -321,36 +323,31 @@ function onPlanningDepartmentClear(): void {
   syncPlanningDepartmentLevels([]);
 }
 
-function buildQuery(overrides: Partial<SkillPlanningQuery> = {}): SkillPlanningQuery {
-  return {
-    ...appliedFilters,
-    primaryScenes: [...headerFilterSelections.primaryScene],
-    secondaryScenes: [...headerFilterSelections.secondaryScene],
-    activities: [...headerFilterSelections.activity],
-    subActivities: [...headerFilterSelections.subActivity],
-    levels: [...headerFilterSelections.level],
-    progresses: [...headerFilterSelections.progress],
-    ...(plannedFinishSortOrder.value
-      ? {
-          sortBy: 'plannedFinishDate' as const,
-          sortOrder: plannedFinishSortOrder.value,
-        }
-      : {}),
-    page: page.value,
-    pageSize: pageSize.value,
-    ...overrides,
-  };
-}
+const queryFilterObj = reactive({
+  firstScene: [...headerFilterSelections.firstScene],
+  secondScene: [...headerFilterSelections.secondScene],
+  activityNodeName: [...headerFilterSelections.activityNodeName],
+  subActivityNodeName: [...headerFilterSelections.subActivityNodeName],
+  level: [...headerFilterSelections.level],
+  status: [...headerFilterSelections.status],
+  keyword: filterForm.keyword,
+  pageNum: pageNum.value,
+  pageSize: pageSize.value,
+  DepartmentL3: filterForm.DepartmentL1,
+  DepartmentL4: filterForm.DepartmentL2,
+  DepartmentL5: filterForm.DepartmentL3,
+  DepartmentL6: filterForm.DepartmentL4,
+});
 
 async function reloadList() {
   loading.value = true;
   try {
-    const result = await querySkillPlanningList(buildQuery());
+    const result = await querySkillPlanningList(queryFilterObj);
     rows.value = result.list;
     total.value = result.total;
-    if (page.value > totalPages.value) {
-      page.value = totalPages.value;
-      const nextResult = await querySkillPlanningList(buildQuery());
+    if (pageNum.value > totalPages.value) {
+      pageNum.value = totalPages.value;
+      const nextResult = await querySkillPlanningList(queryFilterObj);
       rows.value = nextResult.list;
       total.value = nextResult.total;
     }
@@ -363,7 +360,7 @@ async function reloadList() {
 async function queryList() {
   syncPlanningDepartmentLevels();
   Object.assign(appliedFilters, filterForm);
-  page.value = 1;
+  pageNum.value = 1;
   await reloadList();
 }
 
@@ -374,7 +371,7 @@ async function resetQuery() {
   Object.assign(appliedFilters, emptyFilters);
   resetPlanningHeaderFilters();
   plannedFinishSortOrder.value = '';
-  page.value = 1;
+  pageNum.value = 1;
   selectedIds.value = [];
   await reloadList();
 }
@@ -398,18 +395,18 @@ function openEditDialog(row: SkillPlanningItem) {
   editingId.value = row.id;
   resetPlanningForm();
   Object.assign(planningForm, {
-    primaryScene: row.primaryScene,
-    secondaryScene: row.secondaryScene,
-    activity: row.activity,
-    subActivity: row.subActivity,
+    firstScene: row.firstScene,
+    secondScene: row.secondScene,
+    activityNodeName: row.activityNodeName,
+    subActivityNodeName: row.subActivityNodeName,
     skillName: row.skillName,
     skillDescription: row.skillDescription,
     level: row.level,
     owner: row.owner,
     department: row.department,
     developer: row.developer,
-    plannedFinishDate: row.plannedFinishDate,
-    progress: row.progress,
+    plannedCompleteDate: row.plannedCompleteDate,
+    status: row.status,
   });
   formDialogOpen.value = true;
 }
@@ -428,8 +425,8 @@ function validateForm(): boolean {
     'owner',
     'department',
     'developer',
-    'plannedFinishDate',
-    'progress',
+    'plannedCompleteDate',
+    'status',
   ];
 
   requiredFields.forEach((field) => {
@@ -538,7 +535,7 @@ async function submitImportFile() {
     showToast(`已导入 ${result.created} 条 Skill 规划`);
     importSubmitting.value = false;
     closeImportDialog();
-    page.value = 1;
+    pageNum.value = 1;
     await loadPlanningFilterOptions();
     await reloadList();
   } catch (error) {
@@ -550,9 +547,9 @@ async function submitImportFile() {
 }
 
 async function exportCurrentData() {
-  const exportRows = await queryAllSkillPlanningList(
-    buildQuery({ page: undefined, pageSize: undefined }),
-  );
+  queryFilterObj.pageNum = undefined;
+  queryFilterObj.pageSize = undefined;
+  const exportRows = await queryAllSkillPlanningList(queryFilterObj);
   if (exportRows.length === 0) {
     showToast('当前筛选条件下暂无可导出数据');
     return;
@@ -568,8 +565,8 @@ function openBatchDialog() {
   }
   Object.assign(batchForm, {
     department: '',
-    progress: undefined,
-    plannedFinishDate: '',
+    status: undefined,
+    plannedCompleteDate: '',
     developer: '',
   });
   batchDialogOpen.value = true;
@@ -582,8 +579,8 @@ function closeBatchDialog() {
 async function submitBatchUpdate() {
   const patch: SkillPlanningBatchPatch = {
     department: batchForm.department,
-    progress: batchForm.progress,
-    plannedFinishDate: batchForm.plannedFinishDate,
+    status: batchForm.status,
+    plannedCompleteDate: batchForm.plannedCompleteDate,
     developer: batchForm.developer,
   };
   const hasPatch = Object.values(patch).some((value) => String(value ?? '').trim().length > 0);
@@ -674,16 +671,16 @@ function togglePageSelection() {
 }
 
 async function goPage(nextPage: number) {
-  page.value = Math.min(totalPages.value, Math.max(1, nextPage));
+  pageNum.value = Math.min(totalPages.value, Math.max(1, nextPage));
   await reloadList();
 }
 
 async function changePageSize() {
-  page.value = 1;
+  pageNum.value = 1;
   await reloadList();
 }
 
-function progressClass(progress: SkillPlanningProgress): string {
+function progressClass(status: SkillPlanningProgress): string {
   const classMap: Record<SkillPlanningProgress, string> = {
     未开始: 'status-idle',
     开发中: 'status-dev',
@@ -691,7 +688,7 @@ function progressClass(progress: SkillPlanningProgress): string {
     已完成: 'status-done',
     已延期: 'status-delay',
   };
-  return classMap[progress];
+  return classMap[status];
 }
 
 onMounted(() => {
@@ -712,7 +709,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="planning-page">
+  <div class="planning-pageNum">
     <header class="planning-hero">
       <div>
         <h2 class="panel-title">Skill 规划</h2>
@@ -739,7 +736,7 @@ onBeforeUnmount(() => {
         </div>
         <label v-if="false" class="planning-field">
           <span>一级场景</span>
-          <select v-model="filterForm.primaryScene">
+          <select v-model="filterForm.firstScene">
             <option value="">全部</option>
             <option v-for="item in primarySceneOptions" :key="item" :value="item">
               {{ item }}
@@ -748,7 +745,7 @@ onBeforeUnmount(() => {
         </label>
         <label v-if="false" class="planning-field">
           <span>二级场景</span>
-          <select v-model="filterForm.secondaryScene">
+          <select v-model="filterForm.secondScene">
             <option value="">全部</option>
             <option v-for="item in secondarySceneOptions" :key="item" :value="item">
               {{ item }}
@@ -757,14 +754,14 @@ onBeforeUnmount(() => {
         </label>
         <label v-if="false" class="planning-field">
           <span>归属活动</span>
-          <select v-model="filterForm.activity">
+          <select v-model="filterForm.activityNodeName">
             <option value="">全部</option>
             <option v-for="item in activityOptions" :key="item" :value="item">{{ item }}</option>
           </select>
         </label>
         <label v-if="false" class="planning-field">
           <span>归属子活动</span>
-          <select v-model="filterForm.subActivity">
+          <select v-model="filterForm.subActivityNodeName">
             <option value="">全部</option>
             <option v-for="item in subActivityOptions" :key="item" :value="item">{{ item }}</option>
           </select>
@@ -778,7 +775,7 @@ onBeforeUnmount(() => {
         </label>
         <label v-if="false" class="planning-field">
           <span>当前进展</span>
-          <select v-model="filterForm.progress">
+          <select v-model="filterForm.status">
             <option value="">全部</option>
             <option v-for="item in progressOptions" :key="item" :value="item">{{ item }}</option>
           </select>
@@ -897,49 +894,49 @@ onBeforeUnmount(() => {
                 <div
                   class="planning-th-filter"
                   :class="{
-                    'is-open': isHeaderFilterOpen('primaryScene'),
-                    'is-active': headerFilterSelectedCount('primaryScene') > 0,
+                    'is-open': isHeaderFilterOpen('firstScene'),
+                    'is-active': headerFilterSelectedCount('firstScene') > 0,
                   }"
                 >
                   <button
                     type="button"
                     class="planning-th-filter__trigger"
-                    @click.stop="toggleHeaderFilterMenu('primaryScene')"
+                    @click.stop="toggleHeaderFilterMenu('firstScene')"
                   >
                     <span>一级场景</span>
                     <span
-                      v-if="headerFilterSelectedCount('primaryScene')"
+                      v-if="headerFilterSelectedCount('firstScene')"
                       class="planning-th-filter__count"
                     >
-                      {{ headerFilterSelectedCount('primaryScene') }}
+                      {{ headerFilterSelectedCount('firstScene') }}
                     </span>
                     <span class="planning-th-filter__caret" aria-hidden="true"></span>
                   </button>
-                  <div v-if="isHeaderFilterOpen('primaryScene')" class="planning-th-filter__menu">
+                  <div v-if="isHeaderFilterOpen('firstScene')" class="planning-th-filter__menu">
                     <div class="planning-th-filter__menu-head">
                       <strong>一级场景</strong>
                       <button
                         type="button"
                         class="planning-th-filter__clear"
-                        :disabled="headerFilterSelectedCount('primaryScene') === 0"
-                        @click.stop="clearHeaderFilter('primaryScene')"
+                        :disabled="headerFilterSelectedCount('firstScene') === 0"
+                        @click.stop="clearHeaderFilter('firstScene')"
                       >
                         清空
                       </button>
                     </div>
                     <div
-                      v-if="headerFilterOptionList('primaryScene').length"
+                      v-if="headerFilterOptionList('firstScene').length"
                       class="planning-th-filter__options"
                     >
                       <label
-                        v-for="item in headerFilterOptionList('primaryScene')"
-                        :key="`primaryScene-${item}`"
+                        v-for="item in headerFilterOptionList('firstScene')"
+                        :key="`firstScene-${item}`"
                         class="planning-th-filter__option"
                       >
                         <input
                           type="checkbox"
-                          :checked="headerFilterSelections.primaryScene.includes(item)"
-                          @change="toggleHeaderFilterOption('primaryScene', item)"
+                          :checked="headerFilterSelections.firstScene.includes(item)"
+                          @change="toggleHeaderFilterOption('firstScene', item)"
                         />
                         <span>{{ item }}</span>
                       </label>
@@ -952,49 +949,49 @@ onBeforeUnmount(() => {
                 <div
                   class="planning-th-filter"
                   :class="{
-                    'is-open': isHeaderFilterOpen('secondaryScene'),
-                    'is-active': headerFilterSelectedCount('secondaryScene') > 0,
+                    'is-open': isHeaderFilterOpen('secondScene'),
+                    'is-active': headerFilterSelectedCount('secondScene') > 0,
                   }"
                 >
                   <button
                     type="button"
                     class="planning-th-filter__trigger"
-                    @click.stop="toggleHeaderFilterMenu('secondaryScene')"
+                    @click.stop="toggleHeaderFilterMenu('secondScene')"
                   >
                     <span>二级场景</span>
                     <span
-                      v-if="headerFilterSelectedCount('secondaryScene')"
+                      v-if="headerFilterSelectedCount('secondScene')"
                       class="planning-th-filter__count"
                     >
-                      {{ headerFilterSelectedCount('secondaryScene') }}
+                      {{ headerFilterSelectedCount('secondScene') }}
                     </span>
                     <span class="planning-th-filter__caret" aria-hidden="true"></span>
                   </button>
-                  <div v-if="isHeaderFilterOpen('secondaryScene')" class="planning-th-filter__menu">
+                  <div v-if="isHeaderFilterOpen('secondScene')" class="planning-th-filter__menu">
                     <div class="planning-th-filter__menu-head">
                       <strong>二级场景</strong>
                       <button
                         type="button"
                         class="planning-th-filter__clear"
-                        :disabled="headerFilterSelectedCount('secondaryScene') === 0"
-                        @click.stop="clearHeaderFilter('secondaryScene')"
+                        :disabled="headerFilterSelectedCount('secondScene') === 0"
+                        @click.stop="clearHeaderFilter('secondScene')"
                       >
                         清空
                       </button>
                     </div>
                     <div
-                      v-if="headerFilterOptionList('secondaryScene').length"
+                      v-if="headerFilterOptionList('secondScene').length"
                       class="planning-th-filter__options"
                     >
                       <label
-                        v-for="item in headerFilterOptionList('secondaryScene')"
-                        :key="`secondaryScene-${item}`"
+                        v-for="item in headerFilterOptionList('secondScene')"
+                        :key="`secondScene-${item}`"
                         class="planning-th-filter__option"
                       >
                         <input
                           type="checkbox"
-                          :checked="headerFilterSelections.secondaryScene.includes(item)"
-                          @change="toggleHeaderFilterOption('secondaryScene', item)"
+                          :checked="headerFilterSelections.secondScene.includes(item)"
+                          @change="toggleHeaderFilterOption('secondScene', item)"
                         />
                         <span>{{ item }}</span>
                       </label>
@@ -1007,49 +1004,52 @@ onBeforeUnmount(() => {
                 <div
                   class="planning-th-filter"
                   :class="{
-                    'is-open': isHeaderFilterOpen('activity'),
-                    'is-active': headerFilterSelectedCount('activity') > 0,
+                    'is-open': isHeaderFilterOpen('activityNodeName'),
+                    'is-active': headerFilterSelectedCount('activityNodeName') > 0,
                   }"
                 >
                   <button
                     type="button"
                     class="planning-th-filter__trigger"
-                    @click.stop="toggleHeaderFilterMenu('activity')"
+                    @click.stop="toggleHeaderFilterMenu('activityNodeName')"
                   >
                     <span>归属活动</span>
                     <span
-                      v-if="headerFilterSelectedCount('activity')"
+                      v-if="headerFilterSelectedCount('activityNodeName')"
                       class="planning-th-filter__count"
                     >
-                      {{ headerFilterSelectedCount('activity') }}
+                      {{ headerFilterSelectedCount('activityNodeName') }}
                     </span>
                     <span class="planning-th-filter__caret" aria-hidden="true"></span>
                   </button>
-                  <div v-if="isHeaderFilterOpen('activity')" class="planning-th-filter__menu">
+                  <div
+                    v-if="isHeaderFilterOpen('activityNodeName')"
+                    class="planning-th-filter__menu"
+                  >
                     <div class="planning-th-filter__menu-head">
                       <strong>归属活动</strong>
                       <button
                         type="button"
                         class="planning-th-filter__clear"
-                        :disabled="headerFilterSelectedCount('activity') === 0"
-                        @click.stop="clearHeaderFilter('activity')"
+                        :disabled="headerFilterSelectedCount('activityNodeName') === 0"
+                        @click.stop="clearHeaderFilter('activityNodeName')"
                       >
                         清空
                       </button>
                     </div>
                     <div
-                      v-if="headerFilterOptionList('activity').length"
+                      v-if="headerFilterOptionList('activityNodeName').length"
                       class="planning-th-filter__options"
                     >
                       <label
-                        v-for="item in headerFilterOptionList('activity')"
-                        :key="`activity-${item}`"
+                        v-for="item in headerFilterOptionList('activityNodeName')"
+                        :key="`activityNodeName-${item}`"
                         class="planning-th-filter__option"
                       >
                         <input
                           type="checkbox"
-                          :checked="headerFilterSelections.activity.includes(item)"
-                          @change="toggleHeaderFilterOption('activity', item)"
+                          :checked="headerFilterSelections.activityNodeName.includes(item)"
+                          @change="toggleHeaderFilterOption('activityNodeName', item)"
                         />
                         <span>{{ item }}</span>
                       </label>
@@ -1062,49 +1062,52 @@ onBeforeUnmount(() => {
                 <div
                   class="planning-th-filter"
                   :class="{
-                    'is-open': isHeaderFilterOpen('subActivity'),
-                    'is-active': headerFilterSelectedCount('subActivity') > 0,
+                    'is-open': isHeaderFilterOpen('subActivityNodeName'),
+                    'is-active': headerFilterSelectedCount('subActivityNodeName') > 0,
                   }"
                 >
                   <button
                     type="button"
                     class="planning-th-filter__trigger"
-                    @click.stop="toggleHeaderFilterMenu('subActivity')"
+                    @click.stop="toggleHeaderFilterMenu('subActivityNodeName')"
                   >
                     <span>归属子活动</span>
                     <span
-                      v-if="headerFilterSelectedCount('subActivity')"
+                      v-if="headerFilterSelectedCount('subActivityNodeName')"
                       class="planning-th-filter__count"
                     >
-                      {{ headerFilterSelectedCount('subActivity') }}
+                      {{ headerFilterSelectedCount('subActivityNodeName') }}
                     </span>
                     <span class="planning-th-filter__caret" aria-hidden="true"></span>
                   </button>
-                  <div v-if="isHeaderFilterOpen('subActivity')" class="planning-th-filter__menu">
+                  <div
+                    v-if="isHeaderFilterOpen('subActivityNodeName')"
+                    class="planning-th-filter__menu"
+                  >
                     <div class="planning-th-filter__menu-head">
                       <strong>归属子活动</strong>
                       <button
                         type="button"
                         class="planning-th-filter__clear"
-                        :disabled="headerFilterSelectedCount('subActivity') === 0"
-                        @click.stop="clearHeaderFilter('subActivity')"
+                        :disabled="headerFilterSelectedCount('subActivityNodeName') === 0"
+                        @click.stop="clearHeaderFilter('subActivityNodeName')"
                       >
                         清空
                       </button>
                     </div>
                     <div
-                      v-if="headerFilterOptionList('subActivity').length"
+                      v-if="headerFilterOptionList('subActivityNodeName').length"
                       class="planning-th-filter__options"
                     >
                       <label
-                        v-for="item in headerFilterOptionList('subActivity')"
-                        :key="`subActivity-${item}`"
+                        v-for="item in headerFilterOptionList('subActivityNodeName')"
+                        :key="`subActivityNodeName-${item}`"
                         class="planning-th-filter__option"
                       >
                         <input
                           type="checkbox"
-                          :checked="headerFilterSelections.subActivity.includes(item)"
-                          @change="toggleHeaderFilterOption('subActivity', item)"
+                          :checked="headerFilterSelections.subActivityNodeName.includes(item)"
+                          @change="toggleHeaderFilterOption('subActivityNodeName', item)"
                         />
                         <span>{{ item }}</span>
                       </label>
@@ -1195,49 +1198,49 @@ onBeforeUnmount(() => {
                 <div
                   class="planning-th-filter"
                   :class="{
-                    'is-open': isHeaderFilterOpen('progress'),
-                    'is-active': headerFilterSelectedCount('progress') > 0,
+                    'is-open': isHeaderFilterOpen('status'),
+                    'is-active': headerFilterSelectedCount('status') > 0,
                   }"
                 >
                   <button
                     type="button"
                     class="planning-th-filter__trigger"
-                    @click.stop="toggleHeaderFilterMenu('progress')"
+                    @click.stop="toggleHeaderFilterMenu('status')"
                   >
                     <span>当前进展</span>
                     <span
-                      v-if="headerFilterSelectedCount('progress')"
+                      v-if="headerFilterSelectedCount('status')"
                       class="planning-th-filter__count"
                     >
-                      {{ headerFilterSelectedCount('progress') }}
+                      {{ headerFilterSelectedCount('status') }}
                     </span>
                     <span class="planning-th-filter__caret" aria-hidden="true"></span>
                   </button>
-                  <div v-if="isHeaderFilterOpen('progress')" class="planning-th-filter__menu">
+                  <div v-if="isHeaderFilterOpen('status')" class="planning-th-filter__menu">
                     <div class="planning-th-filter__menu-head">
                       <strong>当前进展</strong>
                       <button
                         type="button"
                         class="planning-th-filter__clear"
-                        :disabled="headerFilterSelectedCount('progress') === 0"
-                        @click.stop="clearHeaderFilter('progress')"
+                        :disabled="headerFilterSelectedCount('status') === 0"
+                        @click.stop="clearHeaderFilter('status')"
                       >
                         清空
                       </button>
                     </div>
                     <div
-                      v-if="headerFilterOptionList('progress').length"
+                      v-if="headerFilterOptionList('status').length"
                       class="planning-th-filter__options"
                     >
                       <label
-                        v-for="item in headerFilterOptionList('progress')"
-                        :key="`progress-${item}`"
+                        v-for="item in headerFilterOptionList('status')"
+                        :key="`status-${item}`"
                         class="planning-th-filter__option"
                       >
                         <input
                           type="checkbox"
-                          :checked="headerFilterSelections.progress.includes(item)"
-                          @change="toggleHeaderFilterOption('progress', item)"
+                          :checked="headerFilterSelections.status.includes(item)"
+                          @change="toggleHeaderFilterOption('status', item)"
                         />
                         <span>{{ item }}</span>
                       </label>
@@ -1264,10 +1267,10 @@ onBeforeUnmount(() => {
                   @change="toggleRowSelection(row.id)"
                 />
               </td>
-              <td>{{ row.primaryScene }}</td>
-              <td>{{ row.secondaryScene }}</td>
-              <td>{{ row.activity }}</td>
-              <td>{{ row.subActivity }}</td>
+              <td>{{ row.firstScene }}</td>
+              <td>{{ row.secondScene }}</td>
+              <td>{{ row.activityNodeName }}</td>
+              <td>{{ row.subActivityNodeName }}</td>
               <td>
                 <strong class="skill-name">{{ row.skillName }}</strong>
               </td>
@@ -1278,10 +1281,10 @@ onBeforeUnmount(() => {
               <td>{{ row.owner }}</td>
               <td>{{ row.department }}</td>
               <td>{{ row.developer }}</td>
-              <td>{{ row.plannedFinishDate }}</td>
+              <td>{{ row.plannedCompleteDate }}</td>
               <td>
-                <span class="progress-pill" :class="progressClass(row.progress)">
-                  {{ row.progress }}
+                <span class="status-pill" :class="progressClass(row.status)">
+                  {{ row.status }}
                 </span>
               </td>
               <td class="action-col">
@@ -1322,9 +1325,11 @@ onBeforeUnmount(() => {
               {{ size }} 条/页
             </option>
           </select>
-          <button type="button" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
-          <strong>{{ page }} / {{ totalPages }}</strong>
-          <button type="button" :disabled="page >= totalPages" @click="goPage(page + 1)">
+          <button type="button" :disabled="pageNum <= 1" @click="goPage(pageNum - 1)">
+            上一页
+          </button>
+          <strong>{{ pageNum }} / {{ totalPages }}</strong>
+          <button type="button" :disabled="pageNum >= totalPages" @click="goPage(pageNum + 1)">
             下一页
           </button>
         </div>
@@ -1452,19 +1457,19 @@ onBeforeUnmount(() => {
           <div class="planning-form-grid">
             <label class="planning-field">
               <span>一级场景</span>
-              <input v-model.trim="planningForm.primaryScene" type="text" />
+              <input v-model.trim="planningForm.firstScene" type="text" />
             </label>
             <label class="planning-field">
               <span>二级场景</span>
-              <input v-model.trim="planningForm.secondaryScene" type="text" />
+              <input v-model.trim="planningForm.secondScene" type="text" />
             </label>
             <label class="planning-field">
               <span>归属活动</span>
-              <input v-model.trim="planningForm.activity" type="text" />
+              <input v-model.trim="planningForm.activityNodeName" type="text" />
             </label>
             <label class="planning-field">
               <span>归属子活动</span>
-              <input v-model.trim="planningForm.subActivity" type="text" />
+              <input v-model.trim="planningForm.subActivityNodeName" type="text" />
             </label>
             <label class="planning-field">
               <span>Skill 名称 <em>*</em></span>
@@ -1495,17 +1500,19 @@ onBeforeUnmount(() => {
             </label>
             <label class="planning-field">
               <span>计划完成时间 <em>*</em></span>
-              <input v-model="planningForm.plannedFinishDate" type="date" />
-              <small v-if="formErrors.plannedFinishDate">{{ formErrors.plannedFinishDate }}</small>
+              <input v-model="planningForm.plannedCompleteDate" type="date" />
+              <small v-if="formErrors.plannedCompleteDate">{{
+                formErrors.plannedCompleteDate
+              }}</small>
             </label>
             <label class="planning-field">
               <span>当前进展 <em>*</em></span>
-              <select v-model="planningForm.progress">
+              <select v-model="planningForm.status">
                 <option v-for="item in progressOptions" :key="item" :value="item">
                   {{ item }}
                 </option>
               </select>
-              <small v-if="formErrors.progress">{{ formErrors.progress }}</small>
+              <small v-if="formErrors.status">{{ formErrors.status }}</small>
             </label>
             <label class="planning-field planning-field--textarea">
               <span>Skill 说明 <em>*</em></span>
@@ -1557,7 +1564,7 @@ onBeforeUnmount(() => {
             </label>
             <label class="planning-field">
               <span>当前进展</span>
-              <select v-model="batchForm.progress">
+              <select v-model="batchForm.status">
                 <option :value="undefined">不修改</option>
                 <option v-for="item in progressOptions" :key="item" :value="item">
                   {{ item }}
@@ -1566,7 +1573,7 @@ onBeforeUnmount(() => {
             </label>
             <label class="planning-field">
               <span>计划完成时间</span>
-              <input v-model="batchForm.plannedFinishDate" type="date" />
+              <input v-model="batchForm.plannedCompleteDate" type="date" />
             </label>
             <label class="planning-field">
               <span>开发责任人</span>
@@ -1630,7 +1637,7 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 @use '@/style/UserMarketShell.scss';
-.planning-page {
+.planning-pageNum {
   display: grid;
   gap: 16px;
   width: 100%;
@@ -2148,7 +2155,7 @@ onBeforeUnmount(() => {
   font-weight: 900;
 }
 
-.progress-pill {
+.status-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;

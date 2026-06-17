@@ -1,23 +1,23 @@
 import * as XLSX from 'xlsx';
 
 export type SkillPlanningProgress = '未开始' | '开发中' | '联调中' | '已完成' | '已延期';
-export type SkillPlanningSortField = 'plannedFinishDate';
+export type SkillPlanningSortField = 'plannedCompleteDate';
 export type SkillPlanningSortOrder = 'asc' | 'desc';
 
 export interface SkillPlanningItem {
   id: string;
-  primaryScene: string;
-  secondaryScene: string;
-  activity: string;
-  subActivity: string;
+  firstScene: string;
+  secondScene: string;
+  activityNodeName: string;
+  subActivityNodeName: string;
   skillName: string;
   skillDescription: string;
   level: string;
   owner: string;
   department: string;
   developer: string;
-  plannedFinishDate: string;
-  progress: SkillPlanningProgress;
+  plannedCompleteDate: string;
+  status: SkillPlanningProgress;
 }
 
 export interface SkillPlanningQuery {
@@ -28,17 +28,17 @@ export interface SkillPlanningQuery {
   DepartmentL4?: string;
   DepartmentL5?: string;
   DepartmentL6?: string;
-  primaryScene?: string;
+  firstScene?: string;
   primaryScenes?: string[];
-  secondaryScene?: string;
+  secondScene?: string;
   secondaryScenes?: string[];
-  activity?: string;
+  activityNodeName?: string;
   activities?: string[];
-  subActivity?: string;
+  subActivityNodeName?: string;
   subActivities?: string[];
   level?: string;
   levels?: string[];
-  progress?: string;
+  status?: string;
   progresses?: string[];
   owner?: string;
   plannedStartDate?: string;
@@ -46,7 +46,7 @@ export interface SkillPlanningQuery {
   keyword?: string;
   sortBy?: SkillPlanningSortField;
   sortOrder?: SkillPlanningSortOrder;
-  page?: number;
+  pageNum?: number;
   pageSize?: number;
 }
 
@@ -56,12 +56,12 @@ export interface SkillPlanningListResult {
 }
 
 export interface SkillPlanningFilterOptions {
-  primaryScene: string[];
-  secondaryScene: string[];
-  activity: string[];
-  subActivity: string[];
+  firstScene: string[];
+  secondScene: string[];
+  activityNodeName: string[];
+  subActivityNodeName: string[];
   level: string[];
-  progress: string[];
+  status: string[];
 }
 
 export interface SkillPlanningImportResult {
@@ -71,14 +71,14 @@ export interface SkillPlanningImportResult {
 
 export type SkillPlanningPayload = Omit<SkillPlanningItem, 'id'>;
 export type SkillPlanningBatchPatch = Partial<
-  Pick<SkillPlanningItem, 'department' | 'progress' | 'plannedFinishDate' | 'developer'>
+  Pick<SkillPlanningItem, 'department' | 'status' | 'plannedCompleteDate' | 'developer'>
 >;
 
 export const skillPlanningFieldMap: Record<string, keyof SkillPlanningPayload> = {
-  一级场景: 'primaryScene',
-  二级场景: 'secondaryScene',
-  归属活动: 'activity',
-  归属子活动: 'subActivity',
+  一级场景: 'firstScene',
+  二级场景: 'secondScene',
+  归属活动: 'activityNodeName',
+  归属子活动: 'subActivityNodeName',
   'Skill 名称': 'skillName',
   Skill名称: 'skillName',
   SKILL名称: 'skillName',
@@ -92,8 +92,8 @@ export const skillPlanningFieldMap: Record<string, keyof SkillPlanningPayload> =
   责任Owener: 'owner',
   归属部门: 'department',
   开发责任人: 'developer',
-  计划完成时间: 'plannedFinishDate',
-  当前进展: 'progress',
+  计划完成时间: 'plannedCompleteDate',
+  当前进展: 'status',
 };
 
 export const skillPlanningExportHeaders: Array<keyof typeof skillPlanningFieldMap> = [
@@ -135,18 +135,18 @@ export function normalizeTextArray(value: unknown): string[] {
 
 export function createEmptySkillPlanningPayload(): SkillPlanningPayload {
   return {
-    primaryScene: '',
-    secondaryScene: '',
-    activity: '',
-    subActivity: '',
+    firstScene: '',
+    secondScene: '',
+    activityNodeName: '',
+    subActivityNodeName: '',
     skillName: '',
     skillDescription: '',
     level: '',
     owner: '',
     department: '',
     developer: '',
-    plannedFinishDate: '',
-    progress: defaultProgress,
+    plannedCompleteDate: '',
+    status: defaultProgress,
   };
 }
 
@@ -154,39 +154,41 @@ export function normalizeSkillPlanningPayload(
   payload: Partial<SkillPlanningPayload>,
 ): SkillPlanningPayload {
   return {
-    primaryScene: normalizeText(payload.primaryScene),
-    secondaryScene: normalizeText(payload.secondaryScene),
-    activity: normalizeText(payload.activity),
-    subActivity: normalizeText(payload.subActivity),
+    firstScene: normalizeText(payload.firstScene),
+    secondScene: normalizeText(payload.secondScene),
+    activityNodeName: normalizeText(payload.activityNodeName),
+    subActivityNodeName: normalizeText(payload.subActivityNodeName),
     skillName: normalizeText(payload.skillName),
     skillDescription: normalizeText(payload.skillDescription),
     level: normalizeText(payload.level),
     owner: normalizeText(payload.owner),
     department: normalizeText(payload.department),
     developer: normalizeText(payload.developer),
-    plannedFinishDate: normalizeText(payload.plannedFinishDate),
-    progress: normalizeProgress(payload.progress),
+    plannedCompleteDate: normalizeText(payload.plannedCompleteDate),
+    status: normalizeProgress(payload.status),
   };
 }
 
 export function normalizeSkillPlanningItem(value: unknown): SkillPlanningItem {
   const record =
-    value && typeof value === 'object' ? (value as Record<string, unknown>) : ({} as Record<string, unknown>);
+    value && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
 
   return {
     id: normalizeText(record.id),
-    primaryScene: normalizeText(record.primaryScene),
-    secondaryScene: normalizeText(record.secondaryScene),
-    activity: normalizeText(record.activity),
-    subActivity: normalizeText(record.subActivity),
+    firstScene: normalizeText(record.firstScene),
+    secondScene: normalizeText(record.secondScene),
+    activityNodeName: normalizeText(record.activityNodeName),
+    subActivityNodeName: normalizeText(record.subActivityNodeName),
     skillName: normalizeText(record.skillName),
     skillDescription: normalizeText(record.skillDescription),
     level: normalizeText(record.level),
     owner: normalizeText(record.owner),
     department: normalizeText(record.department),
     developer: normalizeText(record.developer),
-    plannedFinishDate: normalizeText(record.plannedFinishDate),
-    progress: normalizeProgress(record.progress),
+    plannedCompleteDate: normalizeText(record.plannedCompleteDate),
+    status: normalizeProgress(record.status),
   };
 }
 
@@ -198,7 +200,7 @@ export function rowToSkillPlanningPayload(row: Record<string, unknown>): SkillPl
   const payload = createEmptySkillPlanningPayload();
   for (const [label, key] of Object.entries(skillPlanningFieldMap)) {
     if (row[label] !== undefined) {
-      payload[key] = key === 'progress' ? normalizeProgress(row[label]) : normalizeText(row[label]);
+      payload[key] = key === 'status' ? normalizeProgress(row[label]) : normalizeText(row[label]);
     }
   }
   return normalizeSkillPlanningPayload(payload);
@@ -206,18 +208,18 @@ export function rowToSkillPlanningPayload(row: Record<string, unknown>): SkillPl
 
 export function itemToSkillPlanningExportRow(item: SkillPlanningItem): Record<string, string> {
   return {
-    一级场景: item.primaryScene,
-    二级场景: item.secondaryScene,
-    归属活动: item.activity,
-    归属子活动: item.subActivity,
+    一级场景: item.firstScene,
+    二级场景: item.secondScene,
+    归属活动: item.activityNodeName,
+    归属子活动: item.subActivityNodeName,
     'Skill 名称': item.skillName,
     'Skill 说明': item.skillDescription,
     层级: item.level,
     '责任 Owner': item.owner,
     归属部门: item.department,
     开发责任人: item.developer,
-    计划完成时间: item.plannedFinishDate,
-    当前进展: item.progress,
+    计划完成时间: item.plannedCompleteDate,
+    当前进展: item.status,
   };
 }
 

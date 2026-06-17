@@ -11,6 +11,7 @@ export type ReviewTaskCard = {
   owner: string;
   ownerName: string;
   ownerUser: string;
+  version?: string;
   team: string;
   DepartmentL6: string;
   tags: string;
