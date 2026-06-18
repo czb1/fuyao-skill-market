@@ -339,6 +339,15 @@ export const skillBaseService = {
     });
   },
 
+  // 模糊查询产品
+  getProductPlanning: (params: any): any => {
+    return httpRequest.skill<any>({
+      url: '/config/search_offering',
+      method: 'get',
+      params
+    });
+  },
+
   /*
    * skill评审相关接口
    */
