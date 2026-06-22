@@ -1287,11 +1287,13 @@ function getPreviousReviewMonth(): string {
   return formatReviewMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
 }
 
-const currentReviewYear = new Date().getFullYear();
 const currentReviewMonth = formatReviewMonth(new Date());
-const selectedReviewMonth = ref(getPreviousReviewMonth());
+const fixedReviewMonth = getPreviousReviewMonth();
+const fixedReviewMonthYear = Number(fixedReviewMonth.slice(0, 4));
+const reviewMonthSelectionLocked = true;
+const selectedReviewMonth = ref(fixedReviewMonth);
 const reviewMonthPickerOpen = ref(false);
-const reviewMonthViewYear = ref(currentReviewYear);
+const reviewMonthViewYear = ref(fixedReviewMonthYear);
 const reviewMonthPickerRef = ref<HTMLElement | null>(null);
 const reviewMonthOptions = Array.from({ length: 12 }, (_, index) => {
   const value = String(index + 1).padStart(2, '0');
@@ -1319,33 +1321,44 @@ function reviewMonthValue(month: string): string {
 
 function toggleReviewMonthPicker(): void {
   if (!reviewMonthPickerOpen.value) {
-    reviewMonthViewYear.value = selectedReviewMonth.value
-      ? Number(selectedReviewMonth.value.slice(0, 4))
-      : currentReviewYear;
+    reviewMonthViewYear.value = fixedReviewMonthYear;
   }
 
   reviewMonthPickerOpen.value = !reviewMonthPickerOpen.value;
 }
 
 function changeReviewMonthYear(delta: number): void {
+  if (reviewMonthSelectionLocked) {
+    return;
+  }
   reviewMonthViewYear.value += delta;
 }
 
 function selectReviewMonth(month: string): void {
+  if (!isReviewMonthSelectable(month)) {
+    return;
+  }
   selectedReviewMonth.value = reviewMonthValue(month);
   reviewMonthPickerOpen.value = false;
   void reloadReviewCenterTasks();
 }
 
 function clearReviewMonth(): void {
+  const changed = Boolean(selectedReviewMonth.value);
   selectedReviewMonth.value = '';
-  reviewMonthViewYear.value = currentReviewYear;
+  reviewMonthViewYear.value = fixedReviewMonthYear;
   reviewMonthPickerOpen.value = false;
-  void reloadReviewCenterTasks();
+  if (changed) {
+    void reloadReviewCenterTasks();
+  }
 }
 
 function isSelectedReviewMonth(month: string): boolean {
   return selectedReviewMonth.value === reviewMonthValue(month);
+}
+
+function isReviewMonthSelectable(month: string): boolean {
+  return reviewMonthValue(month) === fixedReviewMonth;
 }
 
 function isCurrentReviewMonth(month: string): boolean {
@@ -1557,6 +1570,7 @@ onBeforeUnmount(() => {
                         type="button"
                         class="review-month-picker__year-btn"
                         aria-label="上一年"
+                        :disabled="reviewMonthSelectionLocked"
                         @click="changeReviewMonthYear(-1)"
                       >
                         ‹
@@ -1566,6 +1580,7 @@ onBeforeUnmount(() => {
                         type="button"
                         class="review-month-picker__year-btn"
                         aria-label="下一年"
+                        :disabled="reviewMonthSelectionLocked"
                         @click="changeReviewMonthYear(1)"
                       >
                         ›
@@ -1576,6 +1591,7 @@ onBeforeUnmount(() => {
                         v-for="month in reviewMonthOptions"
                         :key="month.value"
                         type="button"
+                        :disabled="reviewMonthSelectionLocked && !isReviewMonthSelectable(month.value)"
                         :class="[
                           'review-month-picker__month',
                           {
@@ -2970,9 +2986,15 @@ th {
   cursor: pointer;
 }
 
-.review-month-picker__clear:hover {
+.review-month-picker__clear:hover:not(:disabled) {
   background: #fee2e2;
   color: #dc2626;
+}
+
+.review-month-picker__clear:disabled {
+  background: #f8fafc;
+  color: #cbd5e1;
+  cursor: not-allowed;
 }
 
 .review-month-picker__panel {
@@ -3020,9 +3042,16 @@ th {
   cursor: pointer;
 }
 
-.review-month-picker__year-btn:hover {
+.review-month-picker__year-btn:hover:not(:disabled) {
   border-color: #9ec5ff;
   background: #eef6ff;
+}
+
+.review-month-picker__year-btn:disabled {
+  border-color: #e6edf7;
+  background: #f8fafc;
+  color: #cbd5e1;
+  cursor: not-allowed;
 }
 
 .review-month-picker__months {
@@ -3043,10 +3072,17 @@ th {
   cursor: pointer;
 }
 
-.review-month-picker__month:hover {
+.review-month-picker__month:hover:not(:disabled) {
   border-color: #9ec5ff;
   background: #eef6ff;
   color: #1d4ed8;
+}
+
+.review-month-picker__month:disabled {
+  border-color: #e6edf7;
+  background: #f8fafc;
+  color: #c0cada;
+  cursor: not-allowed;
 }
 
 .review-month-picker__month.is-current {
@@ -3084,10 +3120,17 @@ th {
   cursor: pointer;
 }
 
-.review-month-picker__foot button:hover {
+.review-month-picker__foot button:hover:not(:disabled) {
   border-color: #9ec5ff;
   color: #1d4ed8;
   background: #f8fbff;
+}
+
+.review-month-picker__foot button:disabled {
+  border-color: #e6edf7;
+  background: #f8fafc;
+  color: #cbd5e1;
+  cursor: not-allowed;
 }
 
 .toolbar-controls button {
