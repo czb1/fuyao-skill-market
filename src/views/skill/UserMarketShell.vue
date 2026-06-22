@@ -2657,7 +2657,14 @@ function onApplyCoreHarness(): void {
   }, 2500);
 }
 
-type ReleaseFilterKey = 'all' | 'personal' | 'published' | 'reviewing' | 'rejected' | 'coreApply';
+type ReleaseFilterKey =
+  | 'all'
+  | 'personal'
+  | 'published'
+  | 'reviewing'
+  | 'rejected'
+  | 'aiEvolution'
+  | 'coreApply';
 
 const releaseFilter = ref<ReleaseFilterKey>('all');
 
@@ -2667,7 +2674,94 @@ const releaseFilters: { key: ReleaseFilterKey; label: string }[] = [
   { key: 'published', label: '组织级' },
   { key: 'reviewing', label: '组织审核中' },
   { key: 'rejected', label: '组织已驳回' },
+  { key: 'aiEvolution', label: '自进化审批' },
 ];
+
+type AiEvolutionStatus = 'pending' | 'approved' | 'rejected';
+
+type AiEvolutionSkillRow = {
+  id: string;
+  name: string;
+  baseSkillName: string;
+  baseVersion: string;
+  proposedVersion: string;
+  evolutionReason: string;
+  generatedAt: string;
+  status: AiEvolutionStatus;
+  changeSummary: string;
+};
+
+const aiEvolutionSkills = ref<AiEvolutionSkillRow[]>([
+  {
+    id: 'ai-evo-001',
+    name: '智能日报汇总（自进化）',
+    baseSkillName: '智能日报汇总',
+    baseVersion: 'v1.2.0',
+    proposedVersion: 'v1.3.0',
+    evolutionReason: '近 30 天调用失败率达 8.6%，自动优化 Prompt 与异常分支',
+    generatedAt: '2026-06-21 09:14',
+    status: 'pending',
+    changeSummary: '新增空数据兜底、优化分段总结提示词、补充字段缺失校验。',
+  },
+  {
+    id: 'ai-evo-002',
+    name: '会议纪要生成器（自进化）',
+    baseSkillName: '会议纪要生成器',
+    baseVersion: 'v2.0.1',
+    proposedVersion: 'v2.1.0',
+    evolutionReason: '用户反馈显示长会议截断率上升，触发上下文窗口策略升级',
+    generatedAt: '2026-06-20 17:42',
+    status: 'pending',
+    changeSummary: '引入分块摘要 + 二次合并；适配 200k 上下文窗口模型。',
+  },
+  {
+    id: 'ai-evo-003',
+    name: '客户工单分类器（自进化）',
+    baseSkillName: '客户工单分类器',
+    baseVersion: 'v0.9.4',
+    proposedVersion: 'v1.0.0',
+    evolutionReason: '准确率从 87% 提升至 94%，可发起一次正式版本升级',
+    generatedAt: '2026-06-19 22:08',
+    status: 'pending',
+    changeSummary: '引入新一轮标注数据，调整分类阈值与少样本提示。',
+  },
+]);
+
+const aiEvolutionDetailMap = computed<Record<AiEvolutionStatus, { label: string; cls: string }>>(
+  () => ({
+    pending: { label: '待审批', cls: 'st-reviewing-dev' },
+    approved: { label: '已通过', cls: 'st-published' },
+    rejected: { label: '已驳回', cls: 'st-rejected-pdu' },
+  }),
+);
+
+const aiEvolutionPendingCount = computed(
+  () => aiEvolutionSkills.value.filter((s) => s.status === 'pending').length,
+);
+
+const processingAiEvolutionId = ref<string>('');
+
+async function approveAiEvolutionSkill(row: AiEvolutionSkillRow): Promise<void> {
+  if (row.status !== 'pending' || processingAiEvolutionId.value) {
+    return;
+  }
+  processingAiEvolutionId.value = row.id;
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  row.status = 'approved';
+  processingAiEvolutionId.value = '';
+  showToast(`已通过「${row.name}」的自进化审批（演示）`);
+}
+
+async function rejectAiEvolutionSkill(row: AiEvolutionSkillRow): Promise<void> {
+  if (row.status !== 'pending' || processingAiEvolutionId.value) {
+    return;
+  }
+  processingAiEvolutionId.value = row.id;
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  row.status = 'rejected';
+  processingAiEvolutionId.value = '';
+  showToast(`已驳回「${row.name}」的自进化审批（演示）`);
+}
 
 type ReleaseStatusKey = 'personal-live' | 'published' | 'reviewing-dev' | 'rejected-pdu';
 
@@ -2684,6 +2778,9 @@ function releaseSyncActionText(row: {
 
 const onClickFilterRelease = async (key: any) => {
   releaseFilter.value = key;
+  if (key === 'aiEvolution') {
+    return;
+  }
   if (key === 'all' && 'status' in myReleaseFilterObj.value) {
     delete myReleaseFilterObj.value.status;
   } else if (key === 'personal') {
@@ -4066,15 +4163,119 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
               :key="f.key"
               type="button"
               class="seg"
-              :class="{ on: releaseFilter === f.key }"
+              :class="{ on: releaseFilter === f.key, 'seg-ai-evolution': f.key === 'aiEvolution' }"
               @click="onClickFilterRelease(f.key)"
             >
               {{ f.label }}
+              <span
+                v-if="f.key === 'aiEvolution' && aiEvolutionPendingCount > 0"
+                class="seg-badge"
+                >{{ aiEvolutionPendingCount }}</span
+              >
             </button>
           </div>
         </div>
 
-        <div class="table-wrap my-table-wrap" ref="myReleaseTableWrapRef">
+        <div
+          v-if="releaseFilter === 'aiEvolution'"
+          class="ai-evolution-intro"
+          role="note"
+        >
+          <div class="ai-evolution-intro-title">
+            <span class="ai-evolution-tag">AI 自进化</span>
+            <strong>后台自动生成的 Skill 版本，等待你的审批</strong>
+          </div>
+          <p class="ai-evolution-intro-desc">
+            系统会基于运行数据自动产出 Skill 的优化版本。审批通过后将作为新版本进入发布流程；驳回后将丢弃该候选版本。
+          </p>
+        </div>
+
+        <div
+          v-if="releaseFilter === 'aiEvolution'"
+          class="table-wrap my-table-wrap ai-evolution-table-wrap"
+        >
+          <table class="table my-table ai-evolution-table">
+            <thead>
+              <tr>
+                <th class="col-skill">Skill</th>
+                <th class="col-ver">基线版本</th>
+                <th class="col-ver">候选版本</th>
+                <th>自进化原因</th>
+                <th class="col-status">状态</th>
+                <th class="col-ops ai-evo-col-ops">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in aiEvolutionSkills"
+                :key="row.id"
+                class="ai-evolution-row"
+              >
+                <td>
+                  <div class="skill-main">
+                    <strong class="skill-name">{{ row.name }}</strong>
+                    <div class="ai-evolution-sub">
+                      <span>基于「{{ row.baseSkillName }}」</span>
+                      <span class="ai-evolution-time">{{ row.generatedAt }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="cell-main cell-main-plain">{{ row.baseVersion }}</div>
+                </td>
+                <td>
+                  <div class="cell-main cell-main-plain ai-evolution-next-ver">
+                    {{ row.proposedVersion }}
+                  </div>
+                </td>
+                <td>
+                  <div class="ai-evolution-reason">{{ row.evolutionReason }}</div>
+                  <div class="ai-evolution-summary">变更摘要：{{ row.changeSummary }}</div>
+                </td>
+                <td>
+                  <span class="st" :class="aiEvolutionDetailMap[row.status].cls">{{
+                    aiEvolutionDetailMap[row.status].label
+                  }}</span>
+                </td>
+                <td class="col-ops-td">
+                  <div class="ops ai-evolution-ops">
+                    <button
+                      type="button"
+                      class="btn primary sm ai-evo-approve-btn"
+                      :disabled="row.status !== 'pending' || processingAiEvolutionId === row.id"
+                      @click="approveAiEvolutionSkill(row)"
+                    >
+                      {{
+                        row.status === 'approved'
+                          ? '已通过'
+                          : processingAiEvolutionId === row.id
+                            ? '处理中…'
+                            : '通过'
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="mini ai-evo-reject-btn"
+                      :disabled="row.status !== 'pending' || processingAiEvolutionId === row.id"
+                      @click="rejectAiEvolutionSkill(row)"
+                    >
+                      {{ row.status === 'rejected' ? '已驳回' : '驳回' }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="aiEvolutionSkills.length === 0">
+                <td colspan="6" class="empty-row">暂无待审批的自进化 Skill</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          v-else
+          class="table-wrap my-table-wrap"
+          ref="myReleaseTableWrapRef"
+        >
           <table class="table my-table">
             <thead>
               <tr>
