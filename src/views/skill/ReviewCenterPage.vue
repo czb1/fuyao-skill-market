@@ -14,6 +14,7 @@ import {
 } from '../../services/skillMarket/reviewCenterDataSource';
 import type {
   ExpertReviewDimensionDto,
+  ExpertReviewDimensionScoreDto,
   ReviewBadgeDto,
   SkillExpertReviewDetailDto,
 } from '../../services/skillMarket/apiTypes';
@@ -252,6 +253,127 @@ function parseReviewScore(raw: string): number | null {
     return null;
   }
   return roundToTwo(parsed);
+}
+
+function parseNullableNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? roundToTwo(value) : null;
+  }
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? roundToTwo(parsed) : null;
+}
+
+function normalizeExpertReviewStatus(
+  value: unknown,
+  fallback: 'pending' | 'draft' | 'submitted' = 'pending',
+): 'pending' | 'draft' | 'submitted' {
+  const status = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  if (['submitted', 'reviewed', 'done', 'approved', '已评'].includes(status)) {
+    return 'submitted';
+  }
+  if (['draft', 'saved', '草稿'].includes(status)) {
+    return 'draft';
+  }
+  if (['pending', 'todo', '待评', '待审'].includes(status)) {
+    return 'pending';
+  }
+  return fallback;
+}
+
+function normalizeReviewBadgeIds(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? '').trim()).filter(Boolean);
+  }
+  return String(value ?? '')
+    .split(/[，,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeExpertReviewDimensionScores(value: unknown): ExpertReviewDimensionScoreDto[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      const record = readRecord(item);
+      const dimensionId = String(record.dimensionId ?? '').trim();
+      const score = parseNullableNumber(record.score);
+      const reason = String(record.reason ?? record.comment ?? '').trim();
+      const nextScore: ExpertReviewDimensionScoreDto = { dimensionId };
+      if (score != null) {
+        nextScore.score = score;
+      }
+      if (reason) {
+        nextScore.reason = reason;
+      }
+      return nextScore;
+    })
+    .filter((item) => item.dimensionId);
+}
+
+function normalizeCurrentUserReviewDetail(payload: unknown): SkillExpertReviewDetailDto | null {
+  const detailRecord = readRecord(payload);
+  const hasCurrentUserReview = Object.prototype.hasOwnProperty.call(
+    detailRecord,
+    'currentUserReview',
+  );
+  if (hasCurrentUserReview && detailRecord.currentUserReview == null) {
+    return null;
+  }
+
+  const source = hasCurrentUserReview ? detailRecord.currentUserReview : payload;
+  const sourceRecord = readRecord(source);
+  if (Object.keys(sourceRecord).length === 0) {
+    return null;
+  }
+
+  const badgeRecord = readRecord(sourceRecord.badges);
+  const dimensionScores = normalizeExpertReviewDimensionScores(
+    sourceRecord.dimensionScores ?? sourceRecord.dimensions,
+  );
+  const badgeIds = normalizeReviewBadgeIds(sourceRecord.badgeIds ?? badgeRecord.badgeIds);
+  const totalScore = parseNullableNumber(sourceRecord.totalScore ?? sourceRecord.overallScore);
+  const badgeReason = String(
+    sourceRecord.badgeReason ?? badgeRecord.reason ?? badgeRecord.badgeReason ?? '',
+  ).trim();
+  const overallOpinion = String(sourceRecord.overallOpinion ?? sourceRecord.reviewComment ?? '').trim();
+  const hasReviewValues =
+    totalScore != null ||
+    dimensionScores.some((item) => typeof item.score === 'number' || Boolean(item.reason)) ||
+    badgeIds.length > 0 ||
+    Boolean(badgeReason || overallOpinion);
+
+  if (!hasReviewValues) {
+    return null;
+  }
+
+  const skillInfoRecord = readRecord(detailRecord.skillInfo);
+  const aiScoreRecord = readRecord(detailRecord.aiScore);
+  return {
+    reviewId: String(
+      sourceRecord.reviewId ??
+        detailRecord.reviewId ??
+        (activeTask.value?.skillId ? `review-${activeTask.value.skillId}` : ''),
+    ),
+    skillId: String(
+      sourceRecord.skillId ?? detailRecord.skillId ?? skillInfoRecord.skillId ?? activeTask.value?.skillId ?? '',
+    ),
+    aiScore: parseNullableNumber(aiScoreRecord.aiScore ?? detailRecord.aiScore) ?? 0,
+    reviewStatus: normalizeExpertReviewStatus(sourceRecord.reviewStatus ?? sourceRecord.status, 'submitted'),
+    totalScore,
+    dimensionScores,
+    badgeIds,
+    badgeReason,
+    overallOpinion,
+    updatedAt: String(sourceRecord.updatedAt ?? sourceRecord.reviewedAt ?? '').trim(),
+  };
 }
 
 function resetExpertReviewErrors(): void {
@@ -728,20 +850,87 @@ const reviewVersionHistoryGroups = computed<ReviewVersionHistoryGroup[]>(() => {
   return Array.from(groupMap);
 });
 
+const expertReviewCalculatedTotalScore = computed<number | null>(() => {
+  if (!expertDimensionForms.length) {
+    return null;
+  }
+
+  let weightedScore = 0;
+  let weightTotal = 0;
+  let scoreTotal = 0;
+  for (const dimension of expertDimensionForms) {
+    const score = parseReviewScore(dimension.scoreText);
+    if (score == null) {
+      return null;
+    }
+    scoreTotal += score;
+    if (Number.isFinite(dimension.weight) && dimension.weight > 0) {
+      weightedScore += score * dimension.weight;
+      weightTotal += dimension.weight;
+    }
+  }
+
+  return roundToTwo(
+    weightTotal > 0 ? weightedScore / weightTotal : scoreTotal / expertDimensionForms.length,
+  );
+});
+
+const expertReviewTotalScoreValue = computed<number | null>(() => {
+  return (
+    expertReviewCalculatedTotalScore.value ??
+    normalizeCurrentUserReviewDetail(selectedSkillDetail.value)?.totalScore ??
+    null
+  );
+});
+
 const expertReviewTotalScoreText = computed(() => {
-  return selectedSkillDetail.value?.currentUserReview
-    ? (selectedSkillDetail.value.currentUserReview?.overallScore ?? 0)
-    : '待评';
+  const score = expertReviewTotalScoreValue.value;
+  return score == null ? '待评' : formatOverallScore(score);
 });
 
 const expertReviewStatusText = computed(() => {
-  return selectedSkillDetail.value?.currentUserReview ? '已评' : '待评';
+  if (expertReviewStatus.value === 'submitted') {
+    return '已评';
+  }
+  if (expertReviewStatus.value === 'draft') {
+    return '草稿';
+  }
+  return '待评';
 });
 
 function currentTaskReviewId(): string {
   return (
     expertReviewId.value || (activeTask.value?.skillId ? `review-${activeTask.value.skillId}` : '')
   );
+}
+
+function buildSubmittedExpertReviewDetailFromForm(source?: unknown): SkillExpertReviewDetailDto {
+  const sourceRecord = readRecord(source);
+  const currentReviewRecord = readRecord(sourceRecord.currentUserReview);
+  const reviewRecord = Object.keys(currentReviewRecord).length > 0 ? currentReviewRecord : sourceRecord;
+  const selectedDetailRecord = readRecord(selectedSkillDetail.value);
+  const aiScoreRecord = readRecord(selectedDetailRecord.aiScore);
+
+  return {
+    reviewId: String(reviewRecord.reviewId ?? currentTaskReviewId()),
+    skillId: String(reviewRecord.skillId ?? activeTask.value?.skillId ?? ''),
+    aiScore: parseNullableNumber(aiScoreRecord.aiScore ?? selectedDetailRecord.aiScore) ?? 0,
+    reviewStatus: normalizeExpertReviewStatus(reviewRecord.reviewStatus ?? reviewRecord.status, 'submitted'),
+    totalScore: expertReviewTotalScoreValue.value ?? 0,
+    dimensionScores: expertDimensionForms.map((dimension) => ({
+      dimensionId: dimension.dimensionId,
+      score: parseReviewScore(dimension.scoreText) ?? 0,
+      reason: dimension.reason.trim(),
+    })),
+    badgeIds: [...selectedReviewBadgeIds.value],
+    badgeReason: selectedReviewBadgeIds.value.length > 0 ? selectedReviewBadgeReason.value.trim() : '',
+    overallOpinion: expertOverallOpinion.value.trim(),
+    updatedAt: String(
+      reviewRecord.updatedAt ??
+        reviewRecord.reviewedAt ??
+        new Date().toLocaleString('zh-CN', { hour12: false }),
+    ),
+  };
 }
 
 function onExpertDimensionScoreInput(dimensionId: string, event: Event): void {
@@ -827,14 +1016,18 @@ function validateExpertReviewSubmission(): boolean {
 function buildExpertReviewSubmitPayload() {
   const badgeIds = [...selectedReviewBadgeIds.value];
   const badgeReason = badgeIds.length > 0 ? selectedReviewBadgeReason.value.trim() : '';
+  const dimensions = expertDimensionForms.map((dimension) => ({
+    dimensionId: dimension.dimensionId,
+    score: parseReviewScore(dimension.scoreText) ?? 0,
+    comment: dimension.reason.trim(),
+  }));
+
   return {
     userId: props.userId,
-    version: selectedSkillDetail.value.skillInfo.version,
-    dimensions: expertDimensionForms.map((dimension) => ({
-      dimensionId: dimension.dimensionId,
-      score: parseReviewScore(dimension.scoreText) ?? 0,
-      comment: dimension.reason.trim(),
-    })),
+    version: selectedSkillDetail.value?.skillInfo?.version ?? activeTask.value?.version ?? '',
+    reviewId: currentTaskReviewId(),
+    totalScore: expertReviewTotalScoreValue.value ?? 0,
+    dimensions,
     reviewComment: expertOverallOpinion.value.trim(),
     badges: {
       badgeIds,
@@ -896,7 +1089,7 @@ async function loadActiveTaskReviewContext(taskId: string, version: string): Pro
       throw new Error(serviceMessage(skillDetailRes, '评审详情加载失败'));
     }
     selectedSkillDetail.value = skillDetailRes.data;
-    applyExpertReviewDetail(skillDetailRes.data as SkillExpertReviewDetailDto);
+    applyExpertReviewDetail(normalizeCurrentUserReviewDetail(skillDetailRes.data));
   } catch (e) {
     selectedSkillDetail.value = {};
     applyExpertReviewDetail(null);
@@ -925,12 +1118,27 @@ async function submitExpertReview(): Promise<void> {
       activeTask.value.skillId,
       buildExpertReviewSubmitPayload(),
     );
-    if (!serviceSucceeded(response) || !response?.data) {
+    if (!serviceSucceeded(response)) {
       showToast(serviceMessage(response, '提交失败'));
       return;
     }
-    const detail = response.data as SkillExpertReviewDetailDto;
-    selectedSkillDetail.value = detail;
+    const detail =
+      normalizeCurrentUserReviewDetail(response?.data) ?? buildSubmittedExpertReviewDetailFromForm(response?.data);
+    const responseRecord = readRecord(response?.data);
+    const hasReturnedDetailShell =
+      Object.prototype.hasOwnProperty.call(responseRecord, 'skillInfo') ||
+      Object.prototype.hasOwnProperty.call(responseRecord, 'aiScore');
+    const returnedCurrentUserReview = Object.prototype.hasOwnProperty.call(
+      responseRecord,
+      'currentUserReview',
+    )
+      ? responseRecord.currentUserReview
+      : response?.data;
+    selectedSkillDetail.value = {
+      ...readRecord(selectedSkillDetail.value),
+      ...(hasReturnedDetailShell ? responseRecord : {}),
+      currentUserReview: returnedCurrentUserReview ?? detail,
+    };
     applyExpertReviewDetail(detail);
     prependExpertReviewHistory(detail);
     showToast('已提交评审意见');
