@@ -9191,12 +9191,6 @@ span {
   display: inline-block;
 }
 
-.my-filters .seg-ai-evolution.on {
-  background: #f5f3ff;
-  border-color: #c4b5fd;
-  color: #6d28d9;
-}
-
 .my-filters .seg-badge {
   display: inline-flex;
   align-items: center;
@@ -9297,6 +9291,7 @@ span {
   align-items: center;
   justify-content: center;
   gap: 10px;
+  padding-top: 0 !important;
 }
 
 .ai-evo-btn {

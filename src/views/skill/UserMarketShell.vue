@@ -2730,14 +2730,6 @@ const aiEvolutionSkills = ref<AiEvolutionSkillRow[]>([
   },
 ]);
 
-const aiEvolutionDetailMap = computed<Record<AiEvolutionStatus, { label: string; cls: string }>>(
-  () => ({
-    pending: { label: '待审批', cls: 'st-reviewing-dev' },
-    approved: { label: '已通过', cls: 'st-published' },
-    rejected: { label: '已拒绝', cls: 'st-rejected-pdu' },
-  }),
-);
-
 const aiEvolutionPendingCount = computed(
   () => aiEvolutionSkills.value.filter((s) => s.status === 'pending').length,
 );
@@ -4225,7 +4217,6 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                 <th class="col-session">Session ID</th>
                 <th class="col-time">时间</th>
                 <th>简介</th>
-                <th class="col-status">状态</th>
                 <th class="col-ops ai-evo-col-ops">操作</th>
               </tr>
             </thead>
@@ -4257,11 +4248,6 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                 <td>
                   <div class="ai-evolution-reason">{{ row.summary }}</div>
                 </td>
-                <td>
-                  <span class="st" :class="aiEvolutionDetailMap[row.status].cls">{{
-                    aiEvolutionDetailMap[row.status].label
-                  }}</span>
-                </td>
                 <td class="col-ops-td" @click.stop>
                   <div class="ops ai-evolution-ops">
                     <button
@@ -4290,7 +4276,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                 </td>
               </tr>
               <tr v-if="aiEvolutionSkills.length === 0">
-                <td colspan="6" class="empty-row">暂无待审批的自进化 Skill</td>
+                <td colspan="5" class="empty-row">暂无待审批的自进化 Skill</td>
               </tr>
             </tbody>
           </table>
