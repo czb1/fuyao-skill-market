@@ -2735,7 +2735,7 @@ const aiEvolutionDetailMap = computed<Record<AiEvolutionStatus, { label: string;
   () => ({
     pending: { label: '待审批', cls: 'st-reviewing-dev' },
     approved: { label: '已通过', cls: 'st-published' },
-    rejected: { label: '已驳回', cls: 'st-rejected-pdu' },
+    rejected: { label: '已拒绝', cls: 'st-rejected-pdu' },
   }),
 );
 
@@ -2764,7 +2764,7 @@ async function rejectAiEvolutionSkill(row: AiEvolutionSkillRow): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 300));
   row.status = 'rejected';
   processingAiEvolutionId.value = '';
-  showToast(`已驳回「${row.name}」的自进化审批（演示）`);
+  showToast(`已拒绝「${row.name}」的自进化审批（演示）`);
 }
 
 const aiEvolutionDetailRow = ref<AiEvolutionSkillRow | null>(null);
@@ -4304,7 +4304,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                       :disabled="row.status !== 'pending' || processingAiEvolutionId === row.id"
                       @click="rejectAiEvolutionSkill(row)"
                     >
-                      {{ row.status === 'rejected' ? '已驳回' : '驳回' }}
+                      {{ row.status === 'rejected' ? '已拒绝' : '拒绝' }}
                     </button>
                   </div>
                 </td>
