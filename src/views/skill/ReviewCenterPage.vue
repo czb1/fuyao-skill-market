@@ -630,7 +630,7 @@ async function fetchReviewTaskPage(pageNum: number): Promise<ReviewTaskPageResul
     }
 
     const total = response.data.total;
-    isReviewFinalized.value = response.data?.isFinalized ?? false
+    isReviewFinalized.value = response.data?.isFinalized ?? false;
 
     return {
       list: response.data.list,
