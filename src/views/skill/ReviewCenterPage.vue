@@ -615,6 +615,7 @@ type ReviewTaskPageResult = {
   total: number;
 };
 
+const isReviewFinalized = ref(false);
 async function fetchReviewTaskPage(pageNum: number): Promise<ReviewTaskPageResult> {
   const params = syncReviewListFilterObj();
 
@@ -629,6 +630,7 @@ async function fetchReviewTaskPage(pageNum: number): Promise<ReviewTaskPageResul
     }
 
     const total = response.data.total;
+    isReviewFinalized.value = response.data?.isFinalized ?? false
 
     return {
       list: response.data.list,
@@ -1204,7 +1206,7 @@ function submitComputeChannel() {
 }
 
 // 评审列表排序
-const sortType = ref<'按下载量' | '按AI评分'>('按下载量');
+const sortType = ref<'按下载量' | '按AI评分'>('按AI评分');
 const sortTypeValue = computed(
   () => reviewSortList.value.find((item) => item.name === sortType.value)?.value ?? sortType.value,
 );
@@ -1214,7 +1216,7 @@ const reviewSortList = ref<any>([
 ]);
 
 // 审批状态相关
-const reviewStatus = ref<'全部' | '待审批' | '已审批'>('待审批');
+const reviewStatus = ref<'全部' | '待审批' | '已审批'>('全部');
 const reviewStatusValue = computed(
   () =>
     reviewStatusList.value.find((item) => item.name === reviewStatus.value)?.value ??
@@ -1441,7 +1443,7 @@ onBeforeUnmount(() => {
 
           <div class="task-filter-panel" aria-label="任务筛选">
             <div class="toolbar-controls task-filter-controls">
-              <label class="toolbar-filter">
+              <label v-if="!isReviewFinalized" class="toolbar-filter">
                 <span class="toolbar-filter__label">评审状态</span>
                 <select
                   v-model="reviewStatus"
@@ -1569,7 +1571,7 @@ onBeforeUnmount(() => {
                   class="review-dept-cascader"
                   :tree="reviewDepartmentTree"
                   :max-level="6"
-                  aria-label="评审部门级联筛选（departmentL3～DepartmentL6）"
+                  aria-label="评审部门级联筛选（departmentL1～DepartmentL6）"
                   @change="onReviewDepartmentChange"
                   @clear="onReviewDepartmentClear"
                   @done="onReviewDepartmentDone"
@@ -1752,8 +1754,7 @@ onBeforeUnmount(() => {
                   <pre
                     v-if="selectedSkillDetail?.aiScore?.advices"
                     style="height: 120px; overflow: auto"
-                  >
-                    {{
+                    >{{
                       ('改进建议：\nSKILL.md: ' +
                         selectedSkillDetail?.aiScore?.advices?.['SKILL.md'] ?? '') +
                       '\nreferences: ' +
@@ -1816,7 +1817,7 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="expert-review__action-btn--primary"
-                    :disabled="expertReviewLoading || expertReviewSubmitting"
+                    :disabled="expertReviewLoading || expertReviewSubmitting || isReviewFinalized"
                     @click="submitExpertReview"
                   >
                     {{ expertReviewSubmitting ? '提交中...' : '提交评审意见' }}
@@ -1877,6 +1878,7 @@ onBeforeUnmount(() => {
                           <input
                             :id="`expert-score-${dimension.dimensionId}`"
                             :value="dimension.scoreText"
+                            :disabled="isReviewFinalized"
                             type="text"
                             inputmode="decimal"
                             autocomplete="off"
@@ -1894,6 +1896,7 @@ onBeforeUnmount(() => {
                           <span class="expert-field__label">评分理由</span>
                           <textarea
                             :id="`expert-reason-${dimension.dimensionId}`"
+                            :disabled="isReviewFinalized"
                             v-model="dimension.reason"
                             placeholder="请说明该维度的评分依据、亮点与不足，至少 10 个字"
                             @input="dimension.reasonError = ''"
@@ -1921,6 +1924,7 @@ onBeforeUnmount(() => {
                       <span class="expert-field__label">整体评审意见</span>
                       <textarea
                         v-model="expertOverallOpinion"
+                        :disabled="isReviewFinalized"
                         placeholder="请从整体角度填写本次专家评审意见"
                         @input="expertOverallOpinionError = ''"
                       ></textarea>
@@ -1949,6 +1953,7 @@ onBeforeUnmount(() => {
                         v-for="badge in badgeOptions"
                         :key="badge.badgeId"
                         type="button"
+                        :disabled="isReviewFinalized"
                         class="expert-badge-card"
                         :class="{ 'is-selected': selectedReviewBadgeIds.includes(badge.badgeId) }"
                         :aria-pressed="selectedReviewBadgeIds.includes(badge.badgeId)"
@@ -1967,7 +1972,7 @@ onBeforeUnmount(() => {
                       <span class="expert-field__label">勋章推荐理由</span>
                       <textarea
                         v-model="selectedReviewBadgeReason"
-                        :disabled="selectedReviewBadgeIds.length === 0"
+                        :disabled="isReviewFinalized || selectedReviewBadgeIds.length === 0"
                         :placeholder="
                           selectedReviewBadgeIds.length > 0
                             ? '请填写本次勋章推荐的整体理由；即使选择多个勋章，也只需填写一条理由'
@@ -2301,7 +2306,7 @@ onBeforeUnmount(() => {
                   </td>
                   <td class="history-time">{{ expertReview.reviewedAt }}</td>
                   <td class="history-dimension-scores">
-                    <pre class="history-summary-pre">{{
+                    <pre class="history-dimension-pre">{{
                       expertReview.dimensions.reduce(
                         (pre, curr) =>
                           pre +
@@ -2319,7 +2324,7 @@ onBeforeUnmount(() => {
                     <strong class="history-total-score">{{ expertReview.overallScore }}</strong>
                   </td>
                   <td class="history-summary-cell">
-                    <pre>{{ expertReview.reviewComment }}</pre>
+                    <pre class="history-summary-pre">{{ expertReview.reviewComment }}</pre>
                   </td>
                 </tr>
               </tbody>
@@ -2333,5 +2338,5 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 @use '@/style/UserMarketShell.scss';
-@use '@/style/ReviewCenterPage.scss';
+@use '@/style/skill/ReviewCenterPage.scss';
 </style>

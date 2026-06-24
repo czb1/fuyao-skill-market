@@ -315,7 +315,7 @@ function handlePlanningHeaderFilterOutsideClick(event: MouseEvent): void {
 function syncPlanningDepartmentLevels(segments = planningDepartmentSegments.value): void {
   planningDepartmentLevelRefs.forEach((levelRef, index) => {
     levelRef.value = segments[index] ?? '';
-    filterForm[`DepartmentL${index + 1}` as keyof typeof filterForm] = levelRef.value;
+    filterForm[`departmentL${index + 3}` as keyof typeof filterForm] = levelRef.value;
   });
   filterForm.department = segments[segments.length - 1] ?? '';
 }
@@ -343,10 +343,10 @@ const queryFilterObj = reactive({
   keyword: filterForm.keyword,
   pageNum: pageNum.value,
   pageSize: pageSize.value,
-  departmentL5: filterForm.departmentL3,
-  departmentL6: filterForm.departmentL4,
-  departmentL7: filterForm.departmentL5,
-  departmentL8: filterForm.departmentL6,
+  departmentL3: filterForm.departmentL3,
+  departmentL4: filterForm.departmentL4,
+  departmentL5: filterForm.departmentL5,
+  departmentL6: filterForm.departmentL6,
 });
 
 async function reloadList() {
@@ -806,7 +806,7 @@ onBeforeUnmount(() => {
             class="planning-dept-cascader"
             :tree="planningDepartmentTree"
             :max-level="6"
-            aria-label="Skill 规划部门级联筛选（departmentL3～departmentL8）"
+            aria-label="Skill 规划部门级联筛选（DepartmentL1～DepartmentL6）"
             @change="onPlanningDepartmentChange"
             @clear="onPlanningDepartmentClear"
             @done="onPlanningDepartmentDone"
