@@ -13,6 +13,7 @@ export interface SkillPlanningItem {
   skillName: string;
   skillDescription: string;
   level: string;
+  offeringName: string;
   owner: string;
   department: string;
   developer: string;
@@ -73,7 +74,13 @@ export type SkillPlanningPayload = Omit<SkillPlanningItem, 'id'>;
 export type SkillPlanningBatchPatch = Partial<
   Pick<
     SkillPlanningItem,
-    'skillDescription' | 'owner' | 'department' | 'developer' | 'planedCompleteDate' | 'status'
+    | 'skillDescription'
+    | 'offeringName'
+    | 'owner'
+    | 'department'
+    | 'developer'
+    | 'planedCompleteDate'
+    | 'status'
   >
 >;
 export type SkillPlanningBatchUpdatePayload = { ids: string[] } & SkillPlanningBatchPatch;
@@ -90,6 +97,7 @@ export const skillPlanningFieldMap: Record<string, keyof SkillPlanningPayload> =
   Skill说明: 'skillDescription',
   SKILL说明: 'skillDescription',
   层级: 'level',
+  产品: 'offeringName',
   '责任 Owner': 'owner',
   责任Owner: 'owner',
   '责任 Owener': 'owner',
@@ -108,6 +116,7 @@ export const skillPlanningExportHeaders: Array<keyof typeof skillPlanningFieldMa
   'Skill 名称',
   'Skill 说明',
   '层级',
+  '产品',
   '责任 Owner',
   '归属部门',
   '开发责任人',
@@ -146,6 +155,7 @@ export function createEmptySkillPlanningPayload(): SkillPlanningPayload {
     skillName: '',
     skillDescription: '',
     level: '',
+    offeringName: '',
     owner: '',
     department: '',
     developer: '',
@@ -165,6 +175,7 @@ export function normalizeSkillPlanningPayload(
     skillName: normalizeText(payload.skillName),
     skillDescription: normalizeText(payload.skillDescription),
     level: normalizeText(payload.level),
+    offeringName: normalizeText(payload.offeringName),
     owner: normalizeText(payload.owner),
     department: normalizeText(payload.department),
     developer: normalizeText(payload.developer),
@@ -188,6 +199,7 @@ export function normalizeSkillPlanningItem(value: unknown): SkillPlanningItem {
     skillName: normalizeText(record.skillName),
     skillDescription: normalizeText(record.skillDescription),
     level: normalizeText(record.level),
+    offeringName: normalizeText(record.offeringName),
     owner: normalizeText(record.owner),
     department: normalizeText(record.department),
     developer: normalizeText(record.developer),
@@ -219,6 +231,7 @@ export function itemToSkillPlanningExportRow(item: SkillPlanningItem): Record<st
     'Skill 名称': item.skillName,
     'Skill 说明': item.skillDescription,
     层级: item.level,
+    产品: item.offeringName,
     '责任 Owner': item.owner,
     归属部门: item.department,
     开发责任人: item.developer,

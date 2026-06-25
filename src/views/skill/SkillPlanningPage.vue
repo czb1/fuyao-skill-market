@@ -85,6 +85,7 @@ const emptyFilters = {
   activityNodeName: '',
   subActivityNodeName: '',
   level: '',
+  offeringName: '',
   status: '',
   owner: '',
   plannedStartDate: '',
@@ -210,6 +211,7 @@ function createEmptyPlanningForm(): SkillPlanningPayload {
     skillName: '',
     skillDescription: '',
     level: '',
+    offeringName: '',
     owner: '',
     department: '',
     developer: '',
@@ -221,6 +223,7 @@ function createEmptyPlanningForm(): SkillPlanningPayload {
 function createEmptyBatchForm(): PlanningBatchForm {
   return {
     skillDescription: '',
+    offeringName: '',
     owner: '',
     department: '',
     developer: '',
@@ -401,6 +404,7 @@ function fillPlanningFormFromRow(row: SkillPlanningItem) {
     skillName: row.skillName,
     skillDescription: row.skillDescription,
     level: row.level,
+    offeringName: row.offeringName,
     owner: row.owner,
     department: row.department,
     developer: row.developer,
@@ -595,6 +599,7 @@ function validateBatchForm(): boolean {
 function collectBatchPatch(): SkillPlanningBatchPatch {
   const patch: SkillPlanningBatchPatch = {};
   const skillDescription = batchForm.skillDescription.trim();
+  const offeringName = batchForm.offeringName.trim();
   const owner = batchForm.owner.trim();
   const department = batchForm.department.trim();
   const developer = batchForm.developer.trim();
@@ -602,6 +607,7 @@ function collectBatchPatch(): SkillPlanningBatchPatch {
   const status = batchForm.status.trim();
 
   if (skillDescription) patch.skillDescription = skillDescription;
+  if (offeringName) patch.offeringName = offeringName;
   if (owner) patch.owner = owner;
   if (department) patch.department = department;
   if (developer) patch.developer = developer;
@@ -915,7 +921,11 @@ onBeforeUnmount(() => {
         </div>
         <label v-if="false" class="planning-field">
           <span>产品</span>
-          <input v-model.trim="filterForm" type="search" placeholder="输入产品关键字搜索" />
+          <input
+            v-model.trim="filterForm.offeringName"
+            type="search"
+            placeholder="输入产品关键字搜索"
+          />
         </label>
         <label v-if="false" class="planning-field">
           <span>计划开始</span>
@@ -1309,6 +1319,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </th>
+              <th>产品</th>
               <th>责任 Owner</th>
               <th>归属部门</th>
               <th>开发责任人</th>
@@ -1496,6 +1507,16 @@ onBeforeUnmount(() => {
               <td>
                 <div class="planning-inline-field">
                   <input
+                    v-model.trim="planningForm.offeringName"
+                    type="text"
+                    class="planning-inline-control"
+                    placeholder="产品"
+                  />
+                </div>
+              </td>
+              <td>
+                <div class="planning-inline-field">
+                  <input
                     v-model.trim="planningForm.owner"
                     type="text"
                     class="planning-inline-control"
@@ -1579,10 +1600,10 @@ onBeforeUnmount(() => {
               </td>
             </tr>
             <tr v-if="loading">
-              <td colspan="14" class="planning-empty">正在加载 Skill 规划数据...</td>
+              <td colspan="15" class="planning-empty">正在加载 Skill 规划数据...</td>
             </tr>
             <tr v-else-if="rows.length === 0 && !inlineCreateActive">
-              <td colspan="14" class="planning-empty">暂无符合条件的 Skill 规划</td>
+              <td colspan="15" class="planning-empty">暂无符合条件的 Skill 规划</td>
             </tr>
             <template v-else>
               <template v-for="row in rows" :key="row.id">
@@ -1693,6 +1714,16 @@ onBeforeUnmount(() => {
                   <td>
                     <div class="planning-inline-field">
                       <input
+                        v-model.trim="planningForm.offeringName"
+                        type="text"
+                        class="planning-inline-control"
+                        placeholder="产品"
+                      />
+                    </div>
+                  </td>
+                  <td>
+                    <div class="planning-inline-field">
+                      <input
                         v-model.trim="planningForm.owner"
                         type="text"
                         class="planning-inline-control"
@@ -1794,6 +1825,7 @@ onBeforeUnmount(() => {
                     <span :title="row.skillDescription">{{ row.skillDescription }}</span>
                   </td>
                   <td>{{ row.level }}</td>
+                  <td>{{ row.offeringName }}</td>
                   <td>{{ row.owner }}</td>
                   <td>{{ row.department }}</td>
                   <td>{{ row.developer }}</td>
@@ -1997,6 +2029,14 @@ onBeforeUnmount(() => {
             </div>
             <div class="batch-form__grid">
               <label class="planning-field">
+                <span>产品</span>
+                <input
+                  v-model.trim="batchForm.offeringName"
+                  type="text"
+                  placeholder="不填写则不修改"
+                />
+              </label>
+              <label class="planning-field">
                 <span>责任 Owner</span>
                 <input v-model.trim="batchForm.owner" type="text" placeholder="不填写则不修改" />
               </label>
@@ -2115,6 +2155,10 @@ onBeforeUnmount(() => {
                 <option v-for="item in levelOptions" :key="item" :value="item">{{ item }}</option>
               </select>
               <small v-if="formErrors.level">{{ formErrors.level }}</small>
+            </label>
+            <label class="planning-field">
+              <span>产品</span>
+              <input v-model.trim="planningForm.offeringName" type="text" />
             </label>
             <label class="planning-field">
               <span>责任 Owner <em>*</em></span>
@@ -2501,7 +2545,7 @@ onBeforeUnmount(() => {
 
 .planning-table {
   width: 100%;
-  min-width: 1680px;
+  min-width: 1800px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
