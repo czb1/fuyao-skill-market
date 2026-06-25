@@ -217,14 +217,14 @@ const planningHeaderFilterOptions = computed<SkillPlanningFilterOptions>(() => (
 const hasActivePlanningHeaderFilters = computed(() =>
   planningHeaderFilterKeys.some((key) => headerFilterSelections[key].length > 0),
 );
-const plannedFinishSortLabel = computed(() => {
+const plannedFinishSortSymbol = computed(() => {
   if (plannedFinishSortOrder.value === 'asc') {
-    return '升序';
+    return '↑';
   }
   if (plannedFinishSortOrder.value === 'desc') {
-    return '降序';
+    return '↓';
   }
-  return '未排序';
+  return '↕';
 });
 const formFirstSceneOptions = computed(() =>
   includeCurrentOption(primarySceneOptions.value, planningForm.firstScene),
@@ -1363,7 +1363,7 @@ onBeforeUnmount(() => {
                 ·
               </template>
               <template v-if="plannedFinishSortOrder"
-                >完成时间{{ plannedFinishSortLabel }}</template
+                >完成时间{{ plannedFinishSortSymbol }}</template
               >
             </template>
           </span>
@@ -1711,18 +1711,14 @@ onBeforeUnmount(() => {
                 <button
                   type="button"
                   class="planning-th-sort"
-                  :class="{
-                    'is-active': plannedFinishSortOrder,
-                    'is-desc': plannedFinishSortOrder === 'desc',
-                  }"
-                  :title="`计划完成时间排序：${plannedFinishSortLabel}`"
+                  :class="{ 'is-active': plannedFinishSortOrder }"
+                  :title="`计划完成时间排序：${plannedFinishSortSymbol}`"
                   @click="togglePlannedFinishSort"
                 >
                   <span>计划完成时间</span>
-                  <span v-if="plannedFinishSortOrder" class="planning-th-sort__badge">
-                    {{ plannedFinishSortLabel }}
+                  <span class="planning-th-sort__symbol" aria-hidden="true">
+                    {{ plannedFinishSortSymbol }}
                   </span>
-                  <span class="planning-th-sort__caret" aria-hidden="true"></span>
                 </button>
               </th>
               <th>
@@ -3481,17 +3477,14 @@ onBeforeUnmount(() => {
   color: #1d4ed8;
 }
 
-.planning-th-sort__badge {
+.planning-th-sort__symbol {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: #eaf2ff;
-  color: #1d4ed8;
-  font-size: 11px;
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+  font-size: 15px;
   font-weight: 900;
   line-height: 1;
 }
@@ -3545,25 +3538,6 @@ onBeforeUnmount(() => {
   height: 4px;
   border-radius: 999px;
   background: currentColor;
-}
-
-.planning-th-sort__caret {
-  width: 8px;
-  height: 8px;
-  flex-shrink: 0;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  opacity: 0.8;
-  transform: translateY(-1px) rotate(45deg);
-  transition: transform 0.16s ease;
-}
-
-.planning-th-sort.is-active .planning-th-sort__caret {
-  transform: translateY(1px) rotate(-135deg);
-}
-
-.planning-th-sort.is-desc .planning-th-sort__caret {
-  transform: translateY(-1px) rotate(45deg);
 }
 
 .planning-th-filter__menu {
