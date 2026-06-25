@@ -142,7 +142,7 @@ function normalizeHttpFilterOptions(response: unknown): SkillPlanningFilterOptio
     secondScene: flattenGroupChildren(sceneGroups),
     activityNodeName: activityGroups.map((group) => group.value),
     subActivityNodeName: flattenGroupChildren(activityGroups),
-    level: normalizeTextArray(pickArray(record, ['levelList', 'levels'])),
+    level: normalizeTextArray(pickArray(record, ['levelList', 'level'])),
     status: normalizeTextArray(pickArray(record, ['statusList', 'statuses'])).map(
       normalizeProgress,
     ),
@@ -180,19 +180,6 @@ function normalizeHttpCount(response: unknown): number {
       record.total,
     0,
   );
-}
-
-function normalizeHttpImportResult(response: unknown): SkillPlanningImportResult {
-  const data = unwrapResponseData<unknown>(response);
-  const record =
-    data && typeof data === 'object'
-      ? (data as Record<string, unknown>)
-      : ({} as Record<string, unknown>);
-
-  return {
-    created: readNumber(record.created, 0),
-    missingFields: normalizeTextArray(record.missingFields),
-  };
 }
 
 function normalizeProductPlanningOptions(response: unknown): ProductPlanningOption[] {
@@ -332,12 +319,12 @@ function normalizeHttpItem(response: unknown): SkillPlanningItem {
 }
 
 const planningHeaderFilterHttpParamPairs = [
-  ['firstScene', 'primaryScenes'],
-  ['secondScene', 'secondaryScenes'],
-  ['activityNodeName', 'activities'],
-  ['subActivityNodeName', 'subActivities'],
-  ['level', 'levels'],
-  ['status', 'progresses'],
+  ['firstScene', 'firstScene'],
+  ['secondScene', 'secondScene'],
+  ['activityNodeName', 'activityNodeName'],
+  ['subActivityNodeName', 'subActivityNodeName'],
+  ['level', 'level'],
+  ['status', 'status'],
 ] as const satisfies ReadonlyArray<readonly [keyof SkillPlanningQuery, keyof SkillPlanningQuery]>;
 
 const planningHeaderFilterHttpMultiKeys = new Set<string>(
@@ -430,11 +417,20 @@ export async function querySkillConfig(
   return normalizeHttpListResult(response);
 }
 
-export async function queryAllSkillPlanningList(
+export async function exportSkillConfig(body: any): Promise<any> {
+  if (!useHttpTransport()) {
+    return (await loadMockService()).querySkillConfig(body);
+  }
+
+  const response = await skillBaseService.exportSkillPlanning(body);
+  return response;
+}
+
+export async function exportAllSkillPlanningList(
   query: SkillPlanningQuery = {},
 ): Promise<SkillPlanningItem[]> {
   if (!useHttpTransport()) {
-    return (await loadMockService()).queryAllSkillPlanningList(query);
+    return (await loadMockService()).exportAllSkillPlanningList(query);
   }
 
   const nextQuery = { ...query };
@@ -447,10 +443,10 @@ export async function queryAllSkillPlanningList(
   let total = Number.POSITIVE_INFINITY;
 
   while (rows.length < total) {
-    const result = await querySkillConfig({
+    delete nextQuery.pageNum;
+    delete nextQuery.pageSize;
+    const result = await exportSkillConfig({
       ...nextQuery,
-      pageNum: nextPage,
-      pageSize,
     });
 
     rows.push(...result.list);
@@ -518,7 +514,7 @@ export async function batchDeleteSkillPlanning(ids: string[]): Promise<number> {
   return normalizeHttpCount(response);
 }
 
-export async function importSkillPlanningFromExcel(file: File): Promise<SkillPlanningImportResult> {
+export async function importSkillPlanningFromExcel(file: File): Promise<any> {
   if (!useHttpTransport()) {
     return (await loadMockService()).importSkillPlanningFromExcel(file);
   }
@@ -526,7 +522,10 @@ export async function importSkillPlanningFromExcel(file: File): Promise<SkillPla
   const formData = new FormData();
   formData.append('file', file);
   const response = await skillBaseService.importSkillPlanning(formData);
-  return normalizeHttpImportResult(response);
+  if (response?.meta?.success && response?.data) {
+    return response.data;
+  }
+  return {};
 }
 
 export async function downloadSkillPlanningTemplate(): Promise<string | void> {

@@ -12,7 +12,7 @@ import {
   getProductPlanning,
   querySkillPlanningUsers,
   querySkillPlanningFilterOptions,
-  queryAllSkillPlanningList,
+  exportAllSkillPlanningList,
   querySkillConfig,
   updateSkillPlanning,
   type ProductPlanningOption,
@@ -149,6 +149,7 @@ const importSubmitting = ref(false);
 const templateDownloadPending = ref(false);
 const selectedImportFile = ref<File | null>(null);
 const importError = ref('');
+const importSuccess = ref('');
 const toast = ref('');
 let toastTimer: ReturnType<typeof window.setTimeout> | null = null;
 
@@ -848,12 +849,12 @@ function assignHeaderFilterQueryValue(
 
 function syncQueryFilterObj(includePagination = true): SkillPlanningQuery {
   const nextQuery: SkillPlanningQuery = {};
-  assignHeaderFilterQueryValue(nextQuery, 'firstScene', 'primaryScenes');
-  assignHeaderFilterQueryValue(nextQuery, 'secondScene', 'secondaryScenes');
-  assignHeaderFilterQueryValue(nextQuery, 'activityNodeName', 'activities');
-  assignHeaderFilterQueryValue(nextQuery, 'subActivityNodeName', 'subActivities');
-  assignHeaderFilterQueryValue(nextQuery, 'level', 'levels');
-  assignHeaderFilterQueryValue(nextQuery, 'status', 'progresses');
+  assignHeaderFilterQueryValue(nextQuery, 'firstScene', 'firstScene');
+  assignHeaderFilterQueryValue(nextQuery, 'secondScene', 'secondScene');
+  assignHeaderFilterQueryValue(nextQuery, 'activityNodeName', 'activityNodeName');
+  assignHeaderFilterQueryValue(nextQuery, 'subActivityNodeName', 'subActivityNodeName');
+  assignHeaderFilterQueryValue(nextQuery, 'level', 'level');
+  assignHeaderFilterQueryValue(nextQuery, 'status', 'status');
   assignQueryValue(nextQuery, 'keyword', filterForm.keyword);
   planningDepartmentSegments.value
     .slice(0, planningDepartmentLevelRefs.length)
@@ -1277,13 +1278,15 @@ async function submitImportFile() {
   try {
     importSubmitting.value = true;
     const result = await importSkillPlanningFromExcel(selectedImportFile.value);
-    if (result.missingFields.length > 0) {
-      importError.value = `导入失败，缺少字段：${result.missingFields.join('、')}`;
-      showToast(importError.value);
+    if (result.errorList.length > 0) {
+      importError.value = `Skill 规划已成功导入 ${result.successCount} 条，${result.failCount ? '失败导入 ' + result.failCount + ' 条' : ''}（共需要导入 ${result.totalCount} 条）`;
+      importError.value = `\n其中导入失败的有：${result.errorList.reduce((pre,curr) => pre + `\n    第${curr.rowNum}行：` + curr.errMsg, '')}`;
       return;
+    } else {
+      importSuccess.value = `Skill 规划已成功导入 ${result.successCount} 条（共需要导入 ${result.totalCount} 条）`
+      importError.value = ''
     }
 
-    showToast(`已导入 ${result.created} 条 Skill 规划`);
     importSubmitting.value = false;
     closeImportDialog();
     pageNum.value = 1;
@@ -1298,7 +1301,7 @@ async function submitImportFile() {
 }
 
 async function exportCurrentData() {
-  const exportRows = await queryAllSkillPlanningList(syncQueryFilterObj(false));
+  const exportRows = await exportAllSkillPlanningList(syncQueryFilterObj(false));
   if (exportRows.length === 0) {
     showToast('当前筛选条件下暂无可导出数据');
     return;
@@ -2770,7 +2773,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <p v-if="importError" class="import-dialog__error">{{ importError }}</p>
+            <p v-if="importError" class="import-dialog__error"><pre>{{ importError }}</pre></p>
 
             <div class="import-dialog__template">
               <button
@@ -4361,6 +4364,7 @@ onBeforeUnmount(() => {
   gap: 16px;
   padding: 20px;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  overflow: auto;
 }
 
 .import-dropzone {
@@ -4475,6 +4479,9 @@ onBeforeUnmount(() => {
   color: #dc2626;
   font-size: 13px;
   font-weight: 800;
+  min-height: 50px;
+  max-height: 200px;
+  overflow: auto;
 }
 
 .import-dialog__template {

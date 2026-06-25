@@ -31,17 +31,11 @@ export interface SkillPlanningQuery {
   departmentL7?: string;
   departmentL8?: string;
   firstScene?: string;
-  primaryScenes?: string[];
   secondScene?: string;
-  secondaryScenes?: string[];
   activityNodeName?: string;
-  activities?: string[];
   subActivityNodeName?: string;
-  subActivities?: string[];
   level?: string;
-  levels?: string[];
   status?: string;
-  progresses?: string[];
   owner?: string;
   plannedStartDate?: string;
   plannedEndDate?: string;

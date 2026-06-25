@@ -234,12 +234,12 @@ function createOptionGroups(
 
 function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
   const keyword = normalizeText(query.keyword).toLowerCase();
-  const primaryScenes = normalizeTextArray(query.primaryScenes);
-  const secondaryScenes = normalizeTextArray(query.secondaryScenes);
-  const activities = normalizeTextArray(query.activities);
-  const subActivities = normalizeTextArray(query.subActivities);
-  const levels = normalizeTextArray(query.levels);
-  const progresses = normalizeTextArray(query.progresses);
+  const firstScene = normalizeTextArray(query.firstScene);
+  const secondScene = normalizeTextArray(query.secondScene);
+  const activityNodeName = normalizeTextArray(query.activityNodeName);
+  const subActivityNodeName = normalizeTextArray(query.subActivityNodeName);
+  const level = normalizeTextArray(query.level);
+  const status = normalizeTextArray(query.status);
   const department =
     normalizeText(query.department) ||
     [
@@ -263,13 +263,14 @@ function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
 
   return skillPlanningItems.filter((item) => {
     if (department && item.department !== department) return false;
-    if (!matchesDiscreteFilter(item.firstScene, firstScene, primaryScenes)) return false;
-    if (!matchesDiscreteFilter(item.secondScene, secondScene, secondaryScenes)) return false;
-    if (!matchesDiscreteFilter(item.activityNodeName, activityNodeName, activities)) return false;
-    if (!matchesDiscreteFilter(item.subActivityNodeName, subActivityNodeName, subActivities))
+    if (!matchesDiscreteFilter(item.firstScene, firstScene, firstScene)) return false;
+    if (!matchesDiscreteFilter(item.secondScene, secondScene, secondScene)) return false;
+    if (!matchesDiscreteFilter(item.activityNodeName, activityNodeName, activityNodeName))
       return false;
-    if (!matchesDiscreteFilter(item.level, level, levels)) return false;
-    if (!matchesDiscreteFilter(item.status, status, progresses)) return false;
+    if (!matchesDiscreteFilter(item.subActivityNodeName, subActivityNodeName, subActivityNodeName))
+      return false;
+    if (!matchesDiscreteFilter(item.level, level, level)) return false;
+    if (!matchesDiscreteFilter(item.status, status, status)) return false;
     if (owner && !item.owner.includes(owner)) return false;
     if (!matchesDateRange(item, query)) return false;
     if (!keyword) return true;
@@ -311,7 +312,7 @@ export async function querySkillConfig(
   };
 }
 
-export async function queryAllSkillPlanningList(
+export async function exportAllSkillPlanningList(
   query: SkillPlanningQuery = {},
 ): Promise<SkillPlanningItem[]> {
   return sortItems(filterItems(query), query).map(cloneSkillPlanningItem);
