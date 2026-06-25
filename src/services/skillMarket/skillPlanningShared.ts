@@ -56,6 +56,11 @@ export interface SkillPlanningListResult {
   total: number;
 }
 
+export interface SkillPlanningOptionGroup {
+  value: string;
+  children: string[];
+}
+
 export interface SkillPlanningFilterOptions {
   firstScene: string[];
   secondScene: string[];
@@ -63,6 +68,8 @@ export interface SkillPlanningFilterOptions {
   subActivityNodeName: string[];
   level: string[];
   status: string[];
+  sceneGroups: SkillPlanningOptionGroup[];
+  activityGroups: SkillPlanningOptionGroup[];
 }
 
 export interface SkillPlanningImportResult {

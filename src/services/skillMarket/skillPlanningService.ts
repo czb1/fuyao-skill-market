@@ -3,11 +3,13 @@ import {
   exportSkillPlanningToExcel,
   normalizeProgress,
   normalizeSkillPlanningItem,
+  normalizeText,
   normalizeTextArray,
   type SkillPlanningBatchPatch,
   type SkillPlanningBatchUpdatePayload,
   type SkillPlanningFilterOptions,
   type SkillPlanningImportResult,
+  type SkillPlanningOptionGroup,
   type SkillPlanningItem,
   type SkillPlanningListResult,
   type SkillPlanningPayload,
@@ -20,6 +22,7 @@ export type {
   SkillPlanningBatchUpdatePayload,
   SkillPlanningFilterOptions,
   SkillPlanningImportResult,
+  SkillPlanningOptionGroup,
   SkillPlanningItem,
   SkillPlanningListResult,
   SkillPlanningPayload,
@@ -57,6 +60,10 @@ function unwrapResponseData<T>(response: unknown): T {
   return (record?.data ?? response) as T;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
 function pickArray(record: Record<string, unknown>, keys: string[]): unknown[] {
   for (const key of keys) {
     if (Array.isArray(record[key])) {
@@ -66,17 +73,78 @@ function pickArray(record: Record<string, unknown>, keys: string[]): unknown[] {
   return [];
 }
 
-function normalizeHttpFilterOptions(response: unknown): {} | SkillPlanningFilterOptions {
-  const record = response?.data ?? {};
+function uniqueTextValues(values: string[]): string[] {
+  return [...new Set(values.map((value) => normalizeText(value)).filter(Boolean))];
+}
 
-  return JSON.stringify(record) === '{}'
-    ? {}
-    : {
-        firstScene: record.skillSceneVoList,
-        activityNodeName: record.skillActivityVoList,
-        level: record.levelList,
-        status: record.statusList,
-      };
+function readOptionText(value: unknown, keys: string[]): string {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return normalizeText(value);
+  }
+
+  const record = asRecord(value);
+  for (const key of keys) {
+    const text = normalizeText(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+  return '';
+}
+
+function normalizeOptionGroups(
+  items: unknown[],
+  parentKeys: string[],
+  childKeys: string[],
+): SkillPlanningOptionGroup[] {
+  const groupMap = new Map<string, string[]>();
+
+  items.forEach((item) => {
+    const parent = readOptionText(item, parentKeys);
+    if (!parent) {
+      return;
+    }
+
+    const children = uniqueTextValues(
+      pickArray(asRecord(item), ['childrenList', 'children', 'childList']).map((child) =>
+        readOptionText(child, childKeys),
+      ),
+    );
+    groupMap.set(parent, uniqueTextValues([...(groupMap.get(parent) ?? []), ...children]));
+  });
+
+  return Array.from(groupMap, ([value, children]) => ({ value, children }));
+}
+
+function flattenGroupChildren(groups: SkillPlanningOptionGroup[]): string[] {
+  return uniqueTextValues(groups.flatMap((group) => group.children));
+}
+
+function normalizeHttpFilterOptions(response: unknown): SkillPlanningFilterOptions {
+  const record = asRecord(unwrapResponseData<unknown>(response));
+  const sceneGroups = normalizeOptionGroups(
+    pickArray(record, ['skillSceneVoList']),
+    ['scene', 'firstScene', 'name', 'label', 'value'],
+    ['scene', 'secondScene', 'name', 'label', 'value'],
+  );
+  const activityGroups = normalizeOptionGroups(
+    pickArray(record, ['skillActivityVoList']),
+    ['activityNodeName', 'activity', 'name', 'label', 'value'],
+    ['subActivityNodeName', 'activityNodeName', 'activity', 'name', 'label', 'value'],
+  );
+
+  return {
+    firstScene: sceneGroups.map((group) => group.value),
+    secondScene: flattenGroupChildren(sceneGroups),
+    activityNodeName: activityGroups.map((group) => group.value),
+    subActivityNodeName: flattenGroupChildren(activityGroups),
+    level: normalizeTextArray(pickArray(record, ['levelList', 'levels'])),
+    status: normalizeTextArray(pickArray(record, ['statusList', 'statuses'])).map(
+      normalizeProgress,
+    ),
+    sceneGroups,
+    activityGroups,
+  };
 }
 
 function normalizeHttpListResult(response: unknown): SkillPlanningListResult {

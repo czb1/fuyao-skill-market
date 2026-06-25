@@ -12,6 +12,7 @@ import {
   type SkillPlanningBatchPatch,
   type SkillPlanningFilterOptions,
   type SkillPlanningImportResult,
+  type SkillPlanningOptionGroup,
   type SkillPlanningItem,
   type SkillPlanningListResult,
   type SkillPlanningPayload,
@@ -192,6 +193,24 @@ function distinctValuesInOrder(values: string[]): string[] {
   return [...new Set(values.map((value) => normalizeText(value)).filter(Boolean))];
 }
 
+function createOptionGroups(
+  parentKey: 'firstScene' | 'activityNodeName',
+  childKey: 'secondScene' | 'subActivityNodeName',
+): SkillPlanningOptionGroup[] {
+  const groupMap = new Map<string, string[]>();
+
+  skillPlanningItems.forEach((item) => {
+    const parent = normalizeText(item[parentKey]);
+    const child = normalizeText(item[childKey]);
+    if (!parent) {
+      return;
+    }
+    groupMap.set(parent, distinctValuesInOrder([...(groupMap.get(parent) ?? []), child]));
+  });
+
+  return Array.from(groupMap, ([value, children]) => ({ value, children }));
+}
+
 function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
   const keyword = normalizeText(query.keyword).toLowerCase();
   const primaryScenes = normalizeTextArray(query.primaryScenes);
@@ -242,17 +261,18 @@ function filterItems(query: SkillPlanningQuery): SkillPlanningItem[] {
 }
 
 export async function getPlanningOption(): Promise<SkillPlanningFilterOptions> {
+  const sceneGroups = createOptionGroups('firstScene', 'secondScene');
+  const activityGroups = createOptionGroups('activityNodeName', 'subActivityNodeName');
+
   return {
-    firstScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.firstScene)),
-    secondScene: distinctValuesInOrder(skillPlanningItems.map((item) => item.secondScene)),
-    activityNodeName: distinctValuesInOrder(
-      skillPlanningItems.map((item) => item.activityNodeName),
-    ),
-    subActivityNodeName: distinctValuesInOrder(
-      skillPlanningItems.map((item) => item.subActivityNodeName),
-    ),
+    firstScene: sceneGroups.map((group) => group.value),
+    secondScene: distinctValuesInOrder(sceneGroups.flatMap((group) => group.children)),
+    activityNodeName: activityGroups.map((group) => group.value),
+    subActivityNodeName: distinctValuesInOrder(activityGroups.flatMap((group) => group.children)),
     level: distinctValuesInOrder(skillPlanningItems.map((item) => item.level)),
     status: distinctValuesInOrder(skillPlanningItems.map((item) => item.status)),
+    sceneGroups,
+    activityGroups,
   };
 }
 

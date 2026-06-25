@@ -16,6 +16,7 @@ import {
   type SkillPlanningBatchPatch,
   type SkillPlanningFilterOptions,
   type SkillPlanningItem,
+  type SkillPlanningOptionGroup,
   type SkillPlanningPayload,
   type SkillPlanningProgress,
   type SkillPlanningQuery,
@@ -121,6 +122,8 @@ const primarySceneOptions = ref<string[]>([]);
 const secondarySceneOptions = ref<string[]>([]);
 const activityOptions = ref<string[]>([]);
 const subActivityOptions = ref<string[]>([]);
+const sceneOptionGroups = ref<SkillPlanningOptionGroup[]>([]);
+const activityOptionGroups = ref<SkillPlanningOptionGroup[]>([]);
 const levelOptions = ref<string[]>([]);
 const headerFilterOpenKey = ref<PlanningHeaderFilterKey | null>(null);
 const headerFilterSelections = reactive<PlanningHeaderFilterSelections>({
@@ -188,6 +191,8 @@ const planningHeaderFilterOptions = computed<SkillPlanningFilterOptions>(() => (
   subActivityNodeName: subActivityOptions.value,
   level: levelOptions.value,
   status: progressOptions.value,
+  sceneGroups: sceneOptionGroups.value,
+  activityGroups: activityOptionGroups.value,
 }));
 const hasActivePlanningHeaderFilters = computed(() =>
   planningHeaderFilterKeys.some((key) => headerFilterSelections[key].length > 0),
@@ -201,6 +206,24 @@ const plannedFinishSortLabel = computed(() => {
   }
   return '未排序';
 });
+const formFirstSceneOptions = computed(() =>
+  includeCurrentOption(primarySceneOptions.value, planningForm.firstScene),
+);
+const formSecondSceneOptions = computed(() =>
+  includeCurrentOption(sceneChildOptions(), planningForm.secondScene),
+);
+const formActivityOptions = computed(() =>
+  includeCurrentOption(activityOptions.value, planningForm.activityNodeName),
+);
+const formSubActivityOptions = computed(() =>
+  includeCurrentOption(activityChildOptions(), planningForm.subActivityNodeName),
+);
+const secondSceneSelectDisabled = computed(
+  () => !planningForm.firstScene && !planningForm.secondScene,
+);
+const subActivitySelectDisabled = computed(
+  () => !planningForm.activityNodeName && !planningForm.subActivityNodeName,
+);
 
 function createEmptyPlanningForm(): SkillPlanningPayload {
   return {
@@ -232,6 +255,49 @@ function createEmptyBatchForm(): PlanningBatchForm {
   };
 }
 
+function includeCurrentOption(options: string[], current: string): string[] {
+  const value = String(current ?? '').trim();
+  if (!value || options.includes(value)) {
+    return options;
+  }
+  return [value, ...options];
+}
+
+function optionGroupChildren(groups: SkillPlanningOptionGroup[], value: string): string[] {
+  return groups.find((group) => group.value === value)?.children ?? [];
+}
+
+function sceneChildOptions(value = planningForm.firstScene): string[] {
+  return value ? optionGroupChildren(sceneOptionGroups.value, value) : [];
+}
+
+function activityChildOptions(value = planningForm.activityNodeName): string[] {
+  return value ? optionGroupChildren(activityOptionGroups.value, value) : [];
+}
+
+function clearPlanningFormError(field: keyof SkillPlanningPayload): void {
+  delete formErrors[field];
+}
+
+function onPlanningFirstSceneChange(): void {
+  planningForm.secondScene = '';
+  clearPlanningFormError('firstScene');
+  clearPlanningFormError('secondScene');
+}
+
+function onPlanningSecondSceneChange(): void {
+  clearPlanningFormError('secondScene');
+}
+
+function onPlanningActivityChange(): void {
+  planningForm.subActivityNodeName = '';
+  clearPlanningFormError('activityNodeName');
+  clearPlanningFormError('subActivityNodeName');
+}
+
+function onPlanningSubActivityChange(): void {
+  clearPlanningFormError('subActivityNodeName');
+}
 function showToast(message: string) {
   toast.value = message;
   if (toastTimer) {
@@ -255,6 +321,8 @@ async function loadPlanningFilterOptions(): Promise<void> {
   secondarySceneOptions.value = options.secondScene;
   activityOptions.value = options.activityNodeName;
   subActivityOptions.value = options.subActivityNodeName;
+  sceneOptionGroups.value = options.sceneGroups ?? [];
+  activityOptionGroups.value = options.activityGroups ?? [];
   levelOptions.value = options.level;
   progressOptions.value = options.status as SkillPlanningProgress[];
   syncPlanningHeaderFilterSelections(options);
@@ -1084,7 +1152,7 @@ onBeforeUnmount(() => {
                           :checked="headerFilterSelections.firstScene.includes(item)"
                           @change="toggleHeaderFilterOption('firstScene', item)"
                         />
-                        <span>{{ item.scene }}</span>
+                        <span>{{ item }}</span>
                       </label>
                     </div>
                     <p v-else class="planning-th-filter__empty">暂无可选项</p>
@@ -1197,7 +1265,7 @@ onBeforeUnmount(() => {
                           :checked="headerFilterSelections.activityNodeName.includes(item)"
                           @change="toggleHeaderFilterOption('activityNodeName', item)"
                         />
-                        <span>{{ item.activityNodeName }}</span>
+                        <span>{{ item }}</span>
                       </label>
                     </div>
                     <p v-else class="planning-th-filter__empty">暂无可选项</p>
@@ -1404,13 +1472,20 @@ onBeforeUnmount(() => {
               <td class="select-col" />
               <td>
                 <div class="planning-inline-field">
-                  <input
-                    v-model.trim="planningForm.firstScene"
-                    type="text"
+                  <select
+                    v-model="planningForm.firstScene"
                     class="planning-inline-control"
                     :class="{ 'has-error': formErrors.firstScene }"
-                    placeholder="一级场景"
-                  />
+                    @change="onPlanningFirstSceneChange"
+                  >
+                    <option
+                      v-for="item in formFirstSceneOptions"
+                      :key="`firstScene-${item}`"
+                      :value="item"
+                    >
+                      {{ item }}
+                    </option>
+                  </select>
                   <small v-if="formErrors.firstScene" class="planning-inline-error">
                     {{ formErrors.firstScene }}
                   </small>
@@ -1418,13 +1493,21 @@ onBeforeUnmount(() => {
               </td>
               <td>
                 <div class="planning-inline-field">
-                  <input
-                    v-model.trim="planningForm.secondScene"
-                    type="text"
+                  <select
+                    v-model="planningForm.secondScene"
                     class="planning-inline-control"
                     :class="{ 'has-error': formErrors.secondScene }"
-                    placeholder="二级场景"
-                  />
+                    :disabled="secondSceneSelectDisabled"
+                    @change="onPlanningSecondSceneChange"
+                  >
+                    <option
+                      v-for="item in formSecondSceneOptions"
+                      :key="`secondScene-${item}`"
+                      :value="item"
+                    >
+                      {{ item }}
+                    </option>
+                  </select>
                   <small v-if="formErrors.secondScene" class="planning-inline-error">
                     {{ formErrors.secondScene }}
                   </small>
@@ -1432,13 +1515,20 @@ onBeforeUnmount(() => {
               </td>
               <td>
                 <div class="planning-inline-field">
-                  <input
-                    v-model.trim="planningForm.activityNodeName"
-                    type="text"
+                  <select
+                    v-model="planningForm.activityNodeName"
                     class="planning-inline-control"
                     :class="{ 'has-error': formErrors.activityNodeName }"
-                    placeholder="归属活动"
-                  />
+                    @change="onPlanningActivityChange"
+                  >
+                    <option
+                      v-for="item in formActivityOptions"
+                      :key="`activityNodeName-${item}`"
+                      :value="item"
+                    >
+                      {{ item }}
+                    </option>
+                  </select>
                   <small v-if="formErrors.activityNodeName" class="planning-inline-error">
                     {{ formErrors.activityNodeName }}
                   </small>
@@ -1446,13 +1536,21 @@ onBeforeUnmount(() => {
               </td>
               <td>
                 <div class="planning-inline-field">
-                  <input
-                    v-model.trim="planningForm.subActivityNodeName"
-                    type="text"
+                  <select
+                    v-model="planningForm.subActivityNodeName"
                     class="planning-inline-control"
                     :class="{ 'has-error': formErrors.subActivityNodeName }"
-                    placeholder="归属子活动"
-                  />
+                    :disabled="subActivitySelectDisabled"
+                    @change="onPlanningSubActivityChange"
+                  >
+                    <option
+                      v-for="item in formSubActivityOptions"
+                      :key="`subActivityNodeName-${item}`"
+                      :value="item"
+                    >
+                      {{ item }}
+                    </option>
+                  </select>
                   <small v-if="formErrors.subActivityNodeName" class="planning-inline-error">
                     {{ formErrors.subActivityNodeName }}
                   </small>
@@ -1611,13 +1709,20 @@ onBeforeUnmount(() => {
                   <td class="select-col" />
                   <td>
                     <div class="planning-inline-field">
-                      <input
-                        v-model.trim="planningForm.firstScene"
-                        type="text"
+                      <select
+                        v-model="planningForm.firstScene"
                         class="planning-inline-control"
                         :class="{ 'has-error': formErrors.firstScene }"
-                        placeholder="一级场景"
-                      />
+                        @change="onPlanningFirstSceneChange"
+                      >
+                        <option
+                          v-for="item in formFirstSceneOptions"
+                          :key="`firstScene-${item}`"
+                          :value="item"
+                        >
+                          {{ item }}
+                        </option>
+                      </select>
                       <small v-if="formErrors.firstScene" class="planning-inline-error">
                         {{ formErrors.firstScene }}
                       </small>
@@ -1625,13 +1730,21 @@ onBeforeUnmount(() => {
                   </td>
                   <td>
                     <div class="planning-inline-field">
-                      <input
-                        v-model.trim="planningForm.secondScene"
-                        type="text"
+                      <select
+                        v-model="planningForm.secondScene"
                         class="planning-inline-control"
                         :class="{ 'has-error': formErrors.secondScene }"
-                        placeholder="二级场景"
-                      />
+                        :disabled="secondSceneSelectDisabled"
+                        @change="onPlanningSecondSceneChange"
+                      >
+                        <option
+                          v-for="item in formSecondSceneOptions"
+                          :key="`secondScene-${item}`"
+                          :value="item"
+                        >
+                          {{ item }}
+                        </option>
+                      </select>
                       <small v-if="formErrors.secondScene" class="planning-inline-error">
                         {{ formErrors.secondScene }}
                       </small>
@@ -1639,13 +1752,20 @@ onBeforeUnmount(() => {
                   </td>
                   <td>
                     <div class="planning-inline-field">
-                      <input
-                        v-model.trim="planningForm.activityNodeName"
-                        type="text"
+                      <select
+                        v-model="planningForm.activityNodeName"
                         class="planning-inline-control"
                         :class="{ 'has-error': formErrors.activityNodeName }"
-                        placeholder="归属活动"
-                      />
+                        @change="onPlanningActivityChange"
+                      >
+                        <option
+                          v-for="item in formActivityOptions"
+                          :key="`activityNodeName-${item}`"
+                          :value="item"
+                        >
+                          {{ item }}
+                        </option>
+                      </select>
                       <small v-if="formErrors.activityNodeName" class="planning-inline-error">
                         {{ formErrors.activityNodeName }}
                       </small>
@@ -1653,13 +1773,21 @@ onBeforeUnmount(() => {
                   </td>
                   <td>
                     <div class="planning-inline-field">
-                      <input
-                        v-model.trim="planningForm.subActivityNodeName"
-                        type="text"
+                      <select
+                        v-model="planningForm.subActivityNodeName"
                         class="planning-inline-control"
                         :class="{ 'has-error': formErrors.subActivityNodeName }"
-                        placeholder="归属子活动"
-                      />
+                        :disabled="subActivitySelectDisabled"
+                        @change="onPlanningSubActivityChange"
+                      >
+                        <option
+                          v-for="item in formSubActivityOptions"
+                          :key="`subActivityNodeName-${item}`"
+                          :value="item"
+                        >
+                          {{ item }}
+                        </option>
+                      </select>
                       <small v-if="formErrors.subActivityNodeName" class="planning-inline-error">
                         {{ formErrors.subActivityNodeName }}
                       </small>
@@ -2123,22 +2251,70 @@ onBeforeUnmount(() => {
           <div class="planning-form-grid">
             <label class="planning-field">
               <span>一级场景 <em>*</em></span>
-              <input v-model.trim="planningForm.firstScene" type="text" />
+              <select v-model="planningForm.firstScene" @change="onPlanningFirstSceneChange">
+                <option value="">请选择</option>
+                <option
+                  v-for="item in formFirstSceneOptions"
+                  :key="`dialog-firstScene-${item}`"
+                  :value="item"
+                >
+                  {{ item }}
+                </option>
+              </select>
               <small v-if="formErrors.firstScene">{{ formErrors.firstScene }}</small>
             </label>
             <label class="planning-field">
               <span>二级场景 <em>*</em></span>
-              <input v-model.trim="planningForm.secondScene" type="text" />
+              <select
+                v-model="planningForm.secondScene"
+                :disabled="secondSceneSelectDisabled"
+                @change="onPlanningSecondSceneChange"
+              >
+                <option value="">
+                  {{ planningForm.firstScene ? '请选择' : '请先选择一级场景' }}
+                </option>
+                <option
+                  v-for="item in formSecondSceneOptions"
+                  :key="`dialog-secondScene-${item}`"
+                  :value="item"
+                >
+                  {{ item }}
+                </option>
+              </select>
               <small v-if="formErrors.secondScene">{{ formErrors.secondScene }}</small>
             </label>
             <label class="planning-field">
               <span>归属活动 <em>*</em></span>
-              <input v-model.trim="planningForm.activityNodeName" type="text" />
+              <select v-model="planningForm.activityNodeName" @change="onPlanningActivityChange">
+                <option value="">请选择</option>
+                <option
+                  v-for="item in formActivityOptions"
+                  :key="`dialog-activityNodeName-${item}`"
+                  :value="item"
+                >
+                  {{ item }}
+                </option>
+              </select>
               <small v-if="formErrors.activityNodeName">{{ formErrors.activityNodeName }}</small>
             </label>
             <label class="planning-field">
               <span>归属子活动 <em>*</em></span>
-              <input v-model.trim="planningForm.subActivityNodeName" type="text" />
+              <select
+                v-model="planningForm.subActivityNodeName"
+                :disabled="subActivitySelectDisabled"
+                @change="onPlanningSubActivityChange"
+              >
+                <option value="">
+                  {{ planningForm.activityNodeName ? '请选择' : '请先选择归属活动' }}
+                </option>
+                <option
+                  v-for="item in formSubActivityOptions"
+                  :key="`dialog-subActivityNodeName-${item}`"
+                  :value="item"
+                >
+                  {{ item }}
+                </option>
+              </select>
               <small v-if="formErrors.subActivityNodeName">{{
                 formErrors.subActivityNodeName
               }}</small>
