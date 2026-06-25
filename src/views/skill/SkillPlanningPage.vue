@@ -2773,7 +2773,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <p v-if="importError" class="import-dialog__error"><pre>{{ importError }}</pre></p>
+            <div v-if="importError" class="import-dialog__error"><pre>{{ importError }}</pre></div>
 
             <div class="import-dialog__template">
               <button
