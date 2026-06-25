@@ -67,6 +67,14 @@ export interface ProductPlanningOption {
   offeringName: string;
 }
 
+export interface SkillPlanningUserOption {
+  id: string;
+  chName: string;
+  label: string;
+  department: string;
+  raw: Record<string, unknown>;
+}
+
 export interface SkillPlanningFilterOptions {
   firstScene: string[];
   secondScene: string[];

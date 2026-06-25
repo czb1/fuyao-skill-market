@@ -6,6 +6,7 @@ import {
   normalizeText,
   normalizeTextArray,
   type ProductPlanningOption,
+  type SkillPlanningUserOption,
   type SkillPlanningBatchPatch,
   type SkillPlanningBatchUpdatePayload,
   type SkillPlanningFilterOptions,
@@ -20,6 +21,7 @@ import {
 export { exportSkillPlanningToExcel, skillPlanningExportHeaders } from './skillPlanningShared';
 export type {
   ProductPlanningOption,
+  SkillPlanningUserOption,
   SkillPlanningBatchPatch,
   SkillPlanningBatchUpdatePayload,
   SkillPlanningFilterOptions,
@@ -213,6 +215,97 @@ function normalizeProductPlanningOptions(response: unknown): ProductPlanningOpti
   return Array.from(optionMap.values());
 }
 
+const userIdKeys = ['id', 'userId', 'employeeNo', 'account', 'uid', 'empNo', 'Account'];
+const userNameKeys = [
+  'chName',
+  'cnName',
+  'userName',
+  'displayNameCN',
+  'displayName',
+  'name',
+  'lastName',
+];
+const userDepartmentKeys = [
+  'departmentL8',
+  'department_l8',
+  'deptL8',
+  'dept_l8',
+  'departmentL7',
+  'department_l7',
+  'deptL7',
+  'dept_l7',
+  'departmentL6',
+  'department_l6',
+  'deptL6',
+  'dept_l6',
+  'departmentL5',
+  'department_l5',
+  'deptL5',
+  'dept_l5',
+  'departmentL4',
+  'department_l4',
+  'deptL4',
+  'dept_l4',
+  'departmentL3',
+  'department_l3',
+  'deptL3',
+  'dept_l3',
+  'departmentL2',
+  'department_l2',
+  'deptL2',
+  'dept_l2',
+  'departmentL1',
+  'department_l1',
+  'deptL1',
+  'dept_l1',
+  'departmentName',
+  'department',
+  'deptName',
+  'dept_name',
+];
+
+function readFirstText(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const text = normalizeText(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+  return '';
+}
+
+function readDeepestDepartment(record: Record<string, unknown>): string {
+  return readFirstText(record, userDepartmentKeys);
+}
+
+function normalizeUserDepartmentOptions(response: unknown): SkillPlanningUserOption[] {
+  const data = unwrapResponseData<unknown>(response);
+  const source = Array.isArray(data)
+    ? data
+    : pickArray(asRecord(data), ['list', 'records', 'items', 'rows', 'data']);
+  const optionMap = new Map<string, SkillPlanningUserOption>();
+
+  source.forEach((item) => {
+    const record = asRecord(item);
+    const id = readFirstText(record, userIdKeys);
+    const chName = readFirstText(record, userNameKeys);
+    const label = [chName, id].filter(Boolean).join(' ');
+    if (!label) {
+      return;
+    }
+
+    optionMap.set(label, {
+      id,
+      chName,
+      label,
+      department: readDeepestDepartment(record),
+      raw: record,
+    });
+  });
+
+  return Array.from(optionMap.values());
+}
+
 function normalizeHttpDownloadUrl(response: unknown): string {
   const data = unwrapResponseData<unknown>(response);
   if (typeof data === 'string') {
@@ -305,6 +398,16 @@ export async function getProductPlanning(offeringName = ''): Promise<ProductPlan
 
   const response = await skillBaseService.getProductPlanning(params);
   return normalizeProductPlanningOptions(response);
+}
+
+export async function querySkillPlanningUsers(info = ''): Promise<SkillPlanningUserOption[]> {
+  const keyword = normalizeText(info);
+  if (!keyword) {
+    return [];
+  }
+
+  const response = await skillBaseService.getUserDepartment({ info: keyword });
+  return normalizeUserDepartmentOptions(response);
 }
 
 export async function querySkillPlanningFilterOptions(): Promise<SkillPlanningFilterOptions> {

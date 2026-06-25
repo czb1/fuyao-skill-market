@@ -39,6 +39,43 @@ const MOCK_VALIDATE_USER = {
   mail: 'mock.user@example.com',
 } as const;
 
+const MOCK_USER_DEPARTMENT_OPTIONS = [
+  {
+    id: 'w30000001',
+    chName: '张三',
+    department_l1: '云核装备经营管理部',
+    department_l2: '智能终端产品部',
+    department_l3: '平台工具部',
+    department_l4: '接口开发组',
+  },
+  {
+    id: 'w30000002',
+    chName: '李四',
+    department_l1: '云核装备经营管理部',
+    department_l2: '质量产品线',
+    department_l3: '质量工具组',
+  },
+  {
+    id: 'w30000003',
+    chName: '王五',
+    department_l1: '数据与智能平台部',
+    department_l2: '数据产品线',
+    department_l3: '日志智能组',
+  },
+  {
+    id: 'w30000004',
+    chName: '赵六',
+    department_l1: '研发效能产品部',
+    department_l2: '知识工程组',
+  },
+  {
+    id: 'w30000005',
+    chName: '钱慧',
+    department_l1: '云平台产品部',
+    department_l2: '发布治理组',
+  },
+] as const;
+
 type MockEnvelope<T> = {
   code: number;
   message: string;
@@ -1806,6 +1843,18 @@ function handleFuyaoUserPlainResponse(
   }
   if (path.includes('auth-manager/login')) {
     return { success: true, code: 0, data: { status: 'ok' } };
+  }
+  if (path.includes('config-center/hw-userinfo')) {
+    const info = String(readParams(config).info ?? '')
+      .trim()
+      .toLowerCase();
+    const data = MOCK_USER_DEPARTMENT_OPTIONS.filter((item) => {
+      if (!info) {
+        return true;
+      }
+      return Object.values(item).some((value) => String(value).toLowerCase().includes(info));
+    });
+    return ok(data, data.length);
   }
   if (path.includes('config-center/user')) {
     const userId = String(readParams(config).userId ?? '').trim();

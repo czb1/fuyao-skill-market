@@ -10,11 +10,13 @@ import {
   exportSkillPlanningToExcel,
   importSkillPlanningFromExcel,
   getProductPlanning,
+  querySkillPlanningUsers,
   querySkillPlanningFilterOptions,
   queryAllSkillPlanningList,
   querySkillConfig,
   updateSkillPlanning,
   type ProductPlanningOption,
+  type SkillPlanningUserOption,
   type SkillPlanningBatchPatch,
   type SkillPlanningFilterOptions,
   type SkillPlanningItem,
@@ -40,6 +42,15 @@ type PlanningHeaderFilterKey =
 type PlanningHeaderFilterSelections = Record<PlanningHeaderFilterKey, string[]>;
 type PlanningBatchField = keyof SkillPlanningBatchPatch;
 type PlanningBatchForm = Record<PlanningBatchField, string>;
+type PlanningPersonField = 'owner' | 'developOwner';
+type PlanningPersonSearchState = {
+  open: boolean;
+  options: SkillPlanningUserOption[];
+  loading: boolean;
+  message: string;
+  touched: boolean;
+  selectedLabel: string;
+};
 
 const props = withDefaults(
   defineProps<{
@@ -157,6 +168,12 @@ const productSearching = ref(false);
 const productSearchMessage = ref('');
 let productSearchTimer: number | null = null;
 let productSearchSeq = 0;
+const personSearchStates = reactive<Record<PlanningPersonField, PlanningPersonSearchState>>({
+  owner: createEmptyPersonSearchState(),
+  developOwner: createEmptyPersonSearchState(),
+});
+const personSearchSeq: Record<PlanningPersonField, number> = { owner: 0, developOwner: 0 };
+const personSearchTimers: Partial<Record<PlanningPersonField, number>> = {};
 
 const batchDialogOpen = ref(false);
 const batchSubmitting = ref(false);
@@ -256,6 +273,17 @@ function createEmptyBatchForm(): PlanningBatchForm {
     developOwner: '',
     planedCompleteDate: '',
     status: '',
+  };
+}
+
+function createEmptyPersonSearchState(): PlanningPersonSearchState {
+  return {
+    open: false,
+    options: [],
+    loading: false,
+    message: '',
+    touched: false,
+    selectedLabel: '',
   };
 }
 
@@ -371,6 +399,134 @@ function choosePlanningProduct(option: ProductPlanningOption): void {
   planningForm.offeringName = option.offeringName;
   closePlanningProductSelect();
 }
+
+function planningPersonValue(field: PlanningPersonField): string {
+  return String((planningForm as Record<string, unknown>)[field] ?? '');
+}
+
+function setPlanningPersonValue(field: PlanningPersonField, value: string): void {
+  (planningForm as Record<string, string>)[field] = value;
+  clearPlanningFormError(field as keyof SkillPlanningPayload);
+}
+
+function setPlanningOwnerDepartment(value: string): void {
+  (planningForm as Record<string, string>).deptName = value;
+  clearPlanningFormError('deptName' as keyof SkillPlanningPayload);
+}
+
+function clearPlanningPersonSearchTimer(field: PlanningPersonField): void {
+  const timer = personSearchTimers[field];
+  if (timer !== undefined) {
+    window.clearTimeout(timer);
+    delete personSearchTimers[field];
+  }
+}
+
+function closePlanningPersonSelect(field: PlanningPersonField): void {
+  personSearchStates[field].open = false;
+  clearPlanningPersonSearchTimer(field);
+}
+
+function closeAllPlanningPersonSelects(): void {
+  (['owner', 'developOwner'] as const).forEach(closePlanningPersonSelect);
+}
+
+function resetPlanningPersonSearchState(field: PlanningPersonField): void {
+  clearPlanningPersonSearchTimer(field);
+  Object.assign(personSearchStates[field], createEmptyPersonSearchState());
+  personSearchSeq[field] += 1;
+}
+
+function resetPlanningPersonSearchStates(): void {
+  (['owner', 'developOwner'] as const).forEach(resetPlanningPersonSearchState);
+}
+
+async function searchPlanningUsers(
+  field: PlanningPersonField,
+  keyword = planningPersonValue(field),
+): Promise<void> {
+  const state = personSearchStates[field];
+  const text = String(keyword ?? '').trim();
+  state.open = true;
+  state.message = '';
+
+  if (!text) {
+    state.options = [];
+    state.loading = false;
+    state.message = '请输入人员信息';
+    return;
+  }
+
+  const requestSeq = ++personSearchSeq[field];
+  state.loading = true;
+
+  try {
+    const options = await querySkillPlanningUsers(text);
+    if (requestSeq !== personSearchSeq[field]) return;
+    state.options = options;
+    state.message = options.length > 0 ? '' : '暂无匹配人员';
+  } catch (error) {
+    if (requestSeq !== personSearchSeq[field]) return;
+    state.options = [];
+    state.message = error instanceof Error ? error.message : '人员查询失败，请稍后重试';
+  } finally {
+    if (requestSeq === personSearchSeq[field]) state.loading = false;
+  }
+}
+
+function openPlanningPersonSelect(field: PlanningPersonField): void {
+  const state = personSearchStates[field];
+  const value = planningPersonValue(field).trim();
+  state.open = true;
+  if (value) {
+    void searchPlanningUsers(field, value);
+    return;
+  }
+  state.options = [];
+  state.message = '请输入人员信息';
+}
+
+function onPlanningPersonInput(field: PlanningPersonField, event: Event): void {
+  const target = event.target instanceof HTMLInputElement ? event.target : null;
+  const value = target?.value ?? '';
+  const state = personSearchStates[field];
+  setPlanningPersonValue(field, value);
+  state.touched = true;
+  state.selectedLabel = '';
+  state.open = true;
+  if (field === 'owner') setPlanningOwnerDepartment('');
+  clearPlanningPersonSearchTimer(field);
+  personSearchTimers[field] = window.setTimeout(() => {
+    void searchPlanningUsers(field, value);
+  }, 250);
+}
+
+function choosePlanningPerson(field: PlanningPersonField, option: SkillPlanningUserOption): void {
+  setPlanningPersonValue(field, option.label);
+  const state = personSearchStates[field];
+  state.selectedLabel = option.label;
+  state.touched = false;
+  state.options = [option];
+  state.message = '';
+  closePlanningPersonSelect(field);
+  if (field === 'owner') setPlanningOwnerDepartment(option.department);
+}
+
+function markPlanningPersonValueSelected(field: PlanningPersonField, value: string): void {
+  const state = personSearchStates[field];
+  state.selectedLabel = String(value ?? '').trim();
+  state.touched = false;
+  state.open = false;
+  state.options = [];
+  state.message = '';
+}
+
+function isPlanningPersonSelectionMissing(field: PlanningPersonField): boolean {
+  const value = planningPersonValue(field).trim();
+  const state = personSearchStates[field];
+  return Boolean(value && state.touched && state.selectedLabel !== value);
+}
+
 function onPlanningFirstSceneChange(): void {
   planningForm.secondScene = '';
   clearPlanningFormError('firstScene');
@@ -492,6 +648,9 @@ function handlePlanningHeaderFilterOutsideClick(event: MouseEvent): void {
   }
   if (!target.closest('.planning-product-select')) {
     closePlanningProductSelect();
+  }
+  if (!target.closest('.planning-person-select')) {
+    closeAllPlanningPersonSelects();
   }
   if (target.closest('.planning-th-filter')) {
     return;
@@ -618,6 +777,7 @@ function resetPlanningForm() {
   Object.keys(formErrors).forEach((key) => {
     delete formErrors[key as keyof SkillPlanningPayload];
   });
+  resetPlanningPersonSearchStates();
 }
 
 function fillPlanningFormFromRow(row: SkillPlanningItem) {
@@ -637,6 +797,8 @@ function fillPlanningFormFromRow(row: SkillPlanningItem) {
     planedCompleteDate: row.planedCompleteDate,
     status: row.status,
   });
+  markPlanningPersonValueSelected('owner', planningPersonValue('owner'));
+  markPlanningPersonValueSelected('developOwner', planningPersonValue('developOwner'));
 }
 
 function startInlineCreate() {
@@ -753,6 +915,12 @@ function validateForm(): boolean {
   requiredFields.forEach((field) => {
     if (!String(planningForm[field] ?? '').trim()) {
       formErrors[field] = '必填';
+    }
+  });
+
+  (['owner', 'developOwner'] as const).forEach((field) => {
+    if (isPlanningPersonSelectionMissing(field)) {
+      formErrors[field as keyof SkillPlanningPayload] = '请选择人员';
     }
   });
 
@@ -1111,6 +1279,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handlePlanningHeaderFilterOutsideClick);
   clearProductSearchTimer();
+  (['owner', 'developOwner'] as const).forEach(clearPlanningPersonSearchTimer);
   if (toastTimer) {
     window.clearTimeout(toastTimer);
     toastTimer = null;
@@ -1806,13 +1975,47 @@ onBeforeUnmount(() => {
               </td>
               <td>
                 <div class="planning-inline-field">
-                  <input
-                    v-model.trim="planningForm.owner"
-                    type="text"
-                    class="planning-inline-control"
-                    :class="{ 'has-error': formErrors.owner }"
-                    placeholder="责任 Owner"
-                  />
+                  <div class="planning-person-select">
+                    <input
+                      :value="planningForm.owner"
+                      type="text"
+                      class="planning-inline-control"
+                      :class="{ 'has-error': formErrors.owner }"
+                      placeholder="责任 Owner"
+                      @focus="openPlanningPersonSelect('owner')"
+                      @input="onPlanningPersonInput('owner', $event)"
+                      @keydown.enter.prevent="searchPlanningUsers('owner')"
+                    />
+                    <div
+                      v-if="personSearchStates.owner.open"
+                      class="planning-person-panel"
+                      @mousedown.stop
+                    >
+                      <div class="planning-person-list">
+                        <span v-if="personSearchStates.owner.loading" class="planning-person-empty"
+                          >查询中...</span
+                        >
+                        <template v-else>
+                          <button
+                            v-for="item in personSearchStates.owner.options"
+                            :key="'owner-' + item.label"
+                            type="button"
+                            class="planning-person-option"
+                            :class="{ 'is-selected': item.label === planningForm.owner }"
+                            @click="choosePlanningPerson('owner', item)"
+                          >
+                            {{ item.label }}
+                          </button>
+                          <span
+                            v-if="personSearchStates.owner.message"
+                            class="planning-person-empty"
+                          >
+                            {{ personSearchStates.owner.message }}
+                          </span>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
                   <small v-if="formErrors.owner" class="planning-inline-error">
                     {{ formErrors.owner }}
                   </small>
@@ -1821,11 +2024,12 @@ onBeforeUnmount(() => {
               <td>
                 <div class="planning-inline-field">
                   <input
-                    v-model.trim="planningForm.deptName"
+                    :value="planningForm.deptName"
                     type="text"
-                    class="planning-inline-control"
+                    readonly
+                    class="planning-inline-control planning-inline-control--readonly"
                     :class="{ 'has-error': formErrors.deptName }"
-                    placeholder="归属部门"
+                    placeholder="随责任 Owner 自动带出"
                   />
                   <small v-if="formErrors.deptName" class="planning-inline-error">
                     {{ formErrors.deptName }}
@@ -1834,13 +2038,49 @@ onBeforeUnmount(() => {
               </td>
               <td>
                 <div class="planning-inline-field">
-                  <input
-                    v-model.trim="planningForm.developOwner"
-                    type="text"
-                    class="planning-inline-control"
-                    :class="{ 'has-error': formErrors.developOwner }"
-                    placeholder="开发责任人"
-                  />
+                  <div class="planning-person-select">
+                    <input
+                      :value="planningForm.developOwner"
+                      type="text"
+                      class="planning-inline-control"
+                      :class="{ 'has-error': formErrors.developOwner }"
+                      placeholder="开发责任人"
+                      @focus="openPlanningPersonSelect('developOwner')"
+                      @input="onPlanningPersonInput('developOwner', $event)"
+                      @keydown.enter.prevent="searchPlanningUsers('developOwner')"
+                    />
+                    <div
+                      v-if="personSearchStates.developOwner.open"
+                      class="planning-person-panel"
+                      @mousedown.stop
+                    >
+                      <div class="planning-person-list">
+                        <span
+                          v-if="personSearchStates.developOwner.loading"
+                          class="planning-person-empty"
+                          >查询中...</span
+                        >
+                        <template v-else>
+                          <button
+                            v-for="item in personSearchStates.developOwner.options"
+                            :key="'developOwner-' + item.label"
+                            type="button"
+                            class="planning-person-option"
+                            :class="{ 'is-selected': item.label === planningForm.developOwner }"
+                            @click="choosePlanningPerson('developOwner', item)"
+                          >
+                            {{ item.label }}
+                          </button>
+                          <span
+                            v-if="personSearchStates.developOwner.message"
+                            class="planning-person-empty"
+                          >
+                            {{ personSearchStates.developOwner.message }}
+                          </span>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
                   <small v-if="formErrors.developOwner" class="planning-inline-error">
                     {{ formErrors.developOwner }}
                   </small>
@@ -2096,13 +2336,49 @@ onBeforeUnmount(() => {
                   </td>
                   <td>
                     <div class="planning-inline-field">
-                      <input
-                        v-model.trim="planningForm.owner"
-                        type="text"
-                        class="planning-inline-control"
-                        :class="{ 'has-error': formErrors.owner }"
-                        placeholder="责任 Owner"
-                      />
+                      <div class="planning-person-select">
+                        <input
+                          :value="planningForm.owner"
+                          type="text"
+                          class="planning-inline-control"
+                          :class="{ 'has-error': formErrors.owner }"
+                          placeholder="责任 Owner"
+                          @focus="openPlanningPersonSelect('owner')"
+                          @input="onPlanningPersonInput('owner', $event)"
+                          @keydown.enter.prevent="searchPlanningUsers('owner')"
+                        />
+                        <div
+                          v-if="personSearchStates.owner.open"
+                          class="planning-person-panel"
+                          @mousedown.stop
+                        >
+                          <div class="planning-person-list">
+                            <span
+                              v-if="personSearchStates.owner.loading"
+                              class="planning-person-empty"
+                              >查询中...</span
+                            >
+                            <template v-else>
+                              <button
+                                v-for="item in personSearchStates.owner.options"
+                                :key="'owner-' + item.label"
+                                type="button"
+                                class="planning-person-option"
+                                :class="{ 'is-selected': item.label === planningForm.owner }"
+                                @click="choosePlanningPerson('owner', item)"
+                              >
+                                {{ item.label }}
+                              </button>
+                              <span
+                                v-if="personSearchStates.owner.message"
+                                class="planning-person-empty"
+                              >
+                                {{ personSearchStates.owner.message }}
+                              </span>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
                       <small v-if="formErrors.owner" class="planning-inline-error">
                         {{ formErrors.owner }}
                       </small>
@@ -2111,11 +2387,12 @@ onBeforeUnmount(() => {
                   <td>
                     <div class="planning-inline-field">
                       <input
-                        v-model.trim="planningForm.deptName"
+                        :value="planningForm.deptName"
                         type="text"
-                        class="planning-inline-control"
+                        readonly
+                        class="planning-inline-control planning-inline-control--readonly"
                         :class="{ 'has-error': formErrors.deptName }"
-                        placeholder="归属部门"
+                        placeholder="随责任 Owner 自动带出"
                       />
                       <small v-if="formErrors.deptName" class="planning-inline-error">
                         {{ formErrors.deptName }}
@@ -2124,13 +2401,49 @@ onBeforeUnmount(() => {
                   </td>
                   <td>
                     <div class="planning-inline-field">
-                      <input
-                        v-model.trim="planningForm.developOwner"
-                        type="text"
-                        class="planning-inline-control"
-                        :class="{ 'has-error': formErrors.developOwner }"
-                        placeholder="开发责任人"
-                      />
+                      <div class="planning-person-select">
+                        <input
+                          :value="planningForm.developOwner"
+                          type="text"
+                          class="planning-inline-control"
+                          :class="{ 'has-error': formErrors.developOwner }"
+                          placeholder="开发责任人"
+                          @focus="openPlanningPersonSelect('developOwner')"
+                          @input="onPlanningPersonInput('developOwner', $event)"
+                          @keydown.enter.prevent="searchPlanningUsers('developOwner')"
+                        />
+                        <div
+                          v-if="personSearchStates.developOwner.open"
+                          class="planning-person-panel"
+                          @mousedown.stop
+                        >
+                          <div class="planning-person-list">
+                            <span
+                              v-if="personSearchStates.developOwner.loading"
+                              class="planning-person-empty"
+                              >查询中...</span
+                            >
+                            <template v-else>
+                              <button
+                                v-for="item in personSearchStates.developOwner.options"
+                                :key="'developOwner-' + item.label"
+                                type="button"
+                                class="planning-person-option"
+                                :class="{ 'is-selected': item.label === planningForm.developOwner }"
+                                @click="choosePlanningPerson('developOwner', item)"
+                              >
+                                {{ item.label }}
+                              </button>
+                              <span
+                                v-if="personSearchStates.developOwner.message"
+                                class="planning-person-empty"
+                              >
+                                {{ personSearchStates.developOwner.message }}
+                              </span>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
                       <small v-if="formErrors.developOwner" class="planning-inline-error">
                         {{ formErrors.developOwner }}
                       </small>
@@ -2627,17 +2940,98 @@ onBeforeUnmount(() => {
             </label>
             <label class="planning-field">
               <span>责任 Owner <em>*</em></span>
-              <input v-model.trim="planningForm.owner" type="text" />
+              <div class="planning-person-select planning-person-select--dialog">
+                <input
+                  :value="planningForm.owner"
+                  type="text"
+                  :class="{ 'has-error': formErrors.owner }"
+                  @focus="openPlanningPersonSelect('owner')"
+                  @input="onPlanningPersonInput('owner', $event)"
+                  @keydown.enter.prevent="searchPlanningUsers('owner')"
+                />
+                <div
+                  v-if="personSearchStates.owner.open"
+                  class="planning-person-panel"
+                  @mousedown.stop
+                >
+                  <div class="planning-person-list">
+                    <span v-if="personSearchStates.owner.loading" class="planning-person-empty"
+                      >查询中...</span
+                    >
+                    <template v-else>
+                      <button
+                        v-for="item in personSearchStates.owner.options"
+                        :key="'dialog-owner-' + item.label"
+                        type="button"
+                        class="planning-person-option"
+                        :class="{ 'is-selected': item.label === planningForm.owner }"
+                        @click="choosePlanningPerson('owner', item)"
+                      >
+                        {{ item.label }}
+                      </button>
+                      <span v-if="personSearchStates.owner.message" class="planning-person-empty">
+                        {{ personSearchStates.owner.message }}
+                      </span>
+                    </template>
+                  </div>
+                </div>
+              </div>
               <small v-if="formErrors.owner">{{ formErrors.owner }}</small>
             </label>
             <label class="planning-field">
               <span>归属部门 <em>*</em></span>
-              <input v-model.trim="planningForm.deptName" type="text" />
+              <input
+                :value="planningForm.deptName"
+                type="text"
+                readonly
+                :class="{ 'has-error': formErrors.deptName }"
+                placeholder="随责任 Owner 自动带出"
+              />
               <small v-if="formErrors.deptName">{{ formErrors.deptName }}</small>
             </label>
             <label class="planning-field">
               <span>开发责任人 <em>*</em></span>
-              <input v-model.trim="planningForm.developOwner" type="text" />
+              <div class="planning-person-select planning-person-select--dialog">
+                <input
+                  :value="planningForm.developOwner"
+                  type="text"
+                  :class="{ 'has-error': formErrors.developOwner }"
+                  @focus="openPlanningPersonSelect('developOwner')"
+                  @input="onPlanningPersonInput('developOwner', $event)"
+                  @keydown.enter.prevent="searchPlanningUsers('developOwner')"
+                />
+                <div
+                  v-if="personSearchStates.developOwner.open"
+                  class="planning-person-panel"
+                  @mousedown.stop
+                >
+                  <div class="planning-person-list">
+                    <span
+                      v-if="personSearchStates.developOwner.loading"
+                      class="planning-person-empty"
+                      >查询中...</span
+                    >
+                    <template v-else>
+                      <button
+                        v-for="item in personSearchStates.developOwner.options"
+                        :key="'dialog-developOwner-' + item.label"
+                        type="button"
+                        class="planning-person-option"
+                        :class="{ 'is-selected': item.label === planningForm.developOwner }"
+                        @click="choosePlanningPerson('developOwner', item)"
+                      >
+                        {{ item.label }}
+                      </button>
+                      <span
+                        v-if="personSearchStates.developOwner.message"
+                        class="planning-person-empty"
+                      >
+                        {{ personSearchStates.developOwner.message }}
+                      </span>
+                    </template>
+                  </div>
+                </div>
+              </div>
               <small v-if="formErrors.developOwner">{{ formErrors.developOwner }}</small>
             </label>
             <label class="planning-field">
@@ -3306,6 +3700,71 @@ onBeforeUnmount(() => {
 .planning-inline-control.has-error {
   border-color: #fca5a5;
   background: #fff7f7;
+}
+
+.planning-inline-control--readonly,
+.planning-field input[readonly] {
+  background: #f8fbff;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.planning-person-select {
+  position: relative;
+  min-width: 0;
+}
+
+.planning-person-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 70;
+  width: 260px;
+  max-width: min(320px, calc(100vw - 48px));
+  padding: 8px;
+  border: 1px solid #dbe6f5;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(33, 53, 84, 0.18);
+}
+
+.planning-person-select--dialog .planning-person-panel {
+  width: 100%;
+  min-width: 260px;
+}
+
+.planning-person-list {
+  display: grid;
+  gap: 4px;
+  max-height: 188px;
+  overflow-y: auto;
+}
+
+.planning-person-option {
+  width: 100%;
+  min-height: 32px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #253852;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.planning-person-option:hover,
+.planning-person-option.is-selected {
+  background: #eef5ff;
+  color: #1263e6;
+}
+
+.planning-person-empty {
+  display: block;
+  padding: 10px 8px;
+  color: #70839d;
+  font-size: 12px;
 }
 
 .planning-product-select {
