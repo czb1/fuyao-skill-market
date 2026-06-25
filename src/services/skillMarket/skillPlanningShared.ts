@@ -76,6 +76,7 @@ export type SkillPlanningBatchPatch = Partial<
     'skillDescription' | 'owner' | 'department' | 'developer' | 'planedCompleteDate' | 'status'
   >
 >;
+export type SkillPlanningBatchUpdatePayload = { ids: string[] } & SkillPlanningBatchPatch;
 
 export const skillPlanningFieldMap: Record<string, keyof SkillPlanningPayload> = {
   一级场景: 'firstScene',

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import MarketDeptCascader from '../../components/skill/MarketDeptCascader.vue';
 import {
   batchDeleteSkillPlanning,
+  batchUpdateSkillPlanning,
   createSkillPlanning,
   deleteSkillPlanning,
   downloadSkillPlanningTemplate,
@@ -172,10 +173,6 @@ const allPageSelected = computed(
   () => rows.value.length > 0 && rows.value.every((row) => selectedIds.value.includes(row.id)),
 );
 const hasSelectedRows = computed(() => selectedIds.value.length > 0);
-const selectedRows = computed(() => {
-  const selected = new Set(selectedIds.value);
-  return rows.value.filter((row) => selected.has(row.id));
-});
 const selectedImportFileSize = computed(() => {
   if (!selectedImportFile.value) {
     return '';
@@ -635,24 +632,19 @@ async function submitBatchEdit() {
     return;
   }
 
-  const targetRows = selectedRows.value;
-  if (targetRows.length === 0) {
-    showToast('未找到已勾选的数据，请重新选择');
+  const ids = [...selectedIds.value];
+  if (ids.length === 0) {
+    showToast('请先勾选至少一条需要批量修改的数据');
     return;
   }
 
   try {
     batchSubmitting.value = true;
-    for (const row of targetRows) {
-      const { id, ...payload } = row;
-      await updateSkillPlanning(id, { ...payload, ...patch });
-    }
-
-    const count = targetRows.length;
+    const count = await batchUpdateSkillPlanning(ids, patch);
     selectedIds.value = [];
     batchDialogOpen.value = false;
     resetBatchForm();
-    showToast(`已批量修改 ${count} 条数据`);
+    showToast(`已批量修改 ${count > 0 ? count : ids.length} 条数据`);
     await loadPlanningFilterOptions();
     await reloadList();
   } catch (error) {
@@ -922,54 +914,8 @@ onBeforeUnmount(() => {
           />
         </div>
         <label v-if="false" class="planning-field">
-          <span>一级场景</span>
-          <select v-model="filterForm.firstScene">
-            <option value="">全部</option>
-            <option v-for="item in primarySceneOptions" :key="item" :value="item">
-              {{ item }}
-            </option>
-          </select>
-        </label>
-        <label v-if="false" class="planning-field">
-          <span>二级场景</span>
-          <select v-model="filterForm.secondScene">
-            <option value="">全部</option>
-            <option v-for="item in secondarySceneOptions" :key="item" :value="item">
-              {{ item }}
-            </option>
-          </select>
-        </label>
-        <label v-if="false" class="planning-field">
-          <span>归属活动</span>
-          <select v-model="filterForm.activityNodeName">
-            <option value="">全部</option>
-            <option v-for="item in activityOptions" :key="item" :value="item">{{ item }}</option>
-          </select>
-        </label>
-        <label v-if="false" class="planning-field">
-          <span>归属子活动</span>
-          <select v-model="filterForm.subActivityNodeName">
-            <option value="">全部</option>
-            <option v-for="item in subActivityOptions" :key="item" :value="item">{{ item }}</option>
-          </select>
-        </label>
-        <label v-if="false" class="planning-field">
-          <span>层级</span>
-          <select v-model="filterForm.level">
-            <option value="">全部</option>
-            <option v-for="item in levelOptions" :key="item" :value="item">{{ item }}</option>
-          </select>
-        </label>
-        <label v-if="false" class="planning-field">
-          <span>当前进展</span>
-          <select v-model="filterForm.status">
-            <option value="">全部</option>
-            <option v-for="item in progressOptions" :key="item" :value="item">{{ item }}</option>
-          </select>
-        </label>
-        <label v-if="false" class="planning-field">
-          <span>责任 Owner</span>
-          <input v-model.trim="filterForm.owner" type="text" placeholder="输入责任人" />
+          <span>产品</span>
+          <input v-model.trim="filterForm" type="search" placeholder="输入产品关键字搜索" />
         </label>
         <label v-if="false" class="planning-field">
           <span>计划开始</span>
@@ -984,7 +930,7 @@ onBeforeUnmount(() => {
           <input
             v-model.trim="filterForm.keyword"
             type="search"
-            placeholder="按 Skill 名称、说明、责任Owner、开发责任人查询"
+            placeholder="按 产品、Skill 名称、说明、责任Owner、开发责任人查询"
             @keydown.enter="onSearchKeyword"
             @input="onSearchKeyword"
           />

@@ -293,6 +293,47 @@ export async function updateSkillPlanning(
   return cloneSkillPlanningItem(next);
 }
 
+function normalizeSkillPlanningBatchPatch(patch: SkillPlanningBatchPatch): SkillPlanningBatchPatch {
+  const next: SkillPlanningBatchPatch = {};
+  const skillDescription = normalizeText(patch.skillDescription);
+  const owner = normalizeText(patch.owner);
+  const department = normalizeText(patch.department);
+  const developer = normalizeText(patch.developer);
+  const planedCompleteDate = normalizeText(patch.planedCompleteDate);
+  const status = normalizeText(patch.status);
+
+  if (skillDescription) next.skillDescription = skillDescription;
+  if (owner) next.owner = owner;
+  if (department) next.department = department;
+  if (developer) next.developer = developer;
+  if (planedCompleteDate) next.planedCompleteDate = planedCompleteDate;
+  if (status) next.status = normalizeProgress(status);
+
+  return next;
+}
+
+export async function batchUpdateSkillPlanning(
+  ids: string[],
+  patch: SkillPlanningBatchPatch,
+): Promise<number> {
+  const idSet = new Set(normalizeTextArray(ids));
+  const nextPatch = normalizeSkillPlanningBatchPatch(patch);
+  if (idSet.size === 0 || Object.keys(nextPatch).length === 0) {
+    return 0;
+  }
+
+  let updatedCount = 0;
+  skillPlanningItems = skillPlanningItems.map((item) => {
+    if (!idSet.has(item.id)) {
+      return item;
+    }
+    updatedCount += 1;
+    return { ...item, ...nextPatch };
+  });
+
+  return updatedCount;
+}
+
 export async function deleteSkillPlanning(id: string): Promise<void> {
   skillPlanningItems = skillPlanningItems.filter((item) => item.id !== id);
 }

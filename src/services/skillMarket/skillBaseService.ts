@@ -297,6 +297,14 @@ export const skillBaseService = {
     });
   },
 
+  batchUpdateSkillPlanning: (body: any): any => {
+    return httpRequest.skill<any>({
+      url: `/config/batch_update`,
+      method: 'put',
+      data: body,
+    });
+  },
+
   deleteSkillPlanning: (params: any): any => {
     return httpRequest.skill<any>({
       url: `/config/singel_delete`,

@@ -5,6 +5,7 @@ import {
   normalizeSkillPlanningItem,
   normalizeTextArray,
   type SkillPlanningBatchPatch,
+  type SkillPlanningBatchUpdatePayload,
   type SkillPlanningFilterOptions,
   type SkillPlanningImportResult,
   type SkillPlanningItem,
@@ -16,6 +17,7 @@ import {
 export { exportSkillPlanningToExcel, skillPlanningExportHeaders } from './skillPlanningShared';
 export type {
   SkillPlanningBatchPatch,
+  SkillPlanningBatchUpdatePayload,
   SkillPlanningFilterOptions,
   SkillPlanningImportResult,
   SkillPlanningItem,
@@ -88,6 +90,10 @@ function normalizeHttpCount(response: unknown): number {
   const data = unwrapResponseData<unknown>(response);
   if (typeof data === 'number') {
     return readNumber(data, 0);
+  }
+
+  if (Array.isArray(data)) {
+    return data.length;
   }
 
   const record =
@@ -216,8 +222,21 @@ export async function updateSkillPlanning(
     return (await loadMockService()).updateSkillPlanning(id, payload);
   }
 
-  const response = await skillBaseService.updateSkillPlanning(id, payload);
+  const response = await skillBaseService.updateSkillPlanning(payload);
   return normalizeHttpItem(response);
+}
+
+export async function batchUpdateSkillPlanning(
+  ids: string[],
+  patch: SkillPlanningBatchPatch,
+): Promise<number> {
+  const body: SkillPlanningBatchUpdatePayload = { ids, ...patch };
+  if (!useHttpTransport()) {
+    return (await loadMockService()).batchUpdateSkillPlanning(ids, patch);
+  }
+
+  const response = await skillBaseService.batchUpdateSkillPlanning(body);
+  return normalizeHttpCount(response);
 }
 
 export async function deleteSkillPlanning(id: string): Promise<void> {
