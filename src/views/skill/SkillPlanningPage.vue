@@ -179,6 +179,12 @@ const batchDialogOpen = ref(false);
 const batchSubmitting = ref(false);
 const batchErrors = reactive<Partial<Record<PlanningBatchField, string>>>({});
 const batchForm = reactive<PlanningBatchForm>(createEmptyBatchForm());
+const batchPersonSearchStates = reactive<Record<PlanningPersonField, PlanningPersonSearchState>>({
+  owner: createEmptyPersonSearchState(),
+  developOwner: createEmptyPersonSearchState(),
+});
+const batchPersonSearchSeq: Record<PlanningPersonField, number> = { owner: 0, developOwner: 0 };
+const batchPersonSearchTimers: Partial<Record<PlanningPersonField, number>> = {};
 
 const confirmDialog = reactive({
   open: false,
@@ -527,6 +533,124 @@ function isPlanningPersonSelectionMissing(field: PlanningPersonField): boolean {
   return Boolean(value && state.touched && state.selectedLabel !== value);
 }
 
+function batchPersonValue(field: PlanningPersonField): string {
+  return String((batchForm as Record<string, unknown>)[field] ?? '');
+}
+
+function setBatchPersonValue(field: PlanningPersonField, value: string): void {
+  (batchForm as Record<string, string>)[field] = value;
+  delete batchErrors[field as PlanningBatchField];
+}
+
+function setBatchOwnerDepartment(value: string): void {
+  batchForm.deptName = value;
+  delete batchErrors.deptName;
+}
+
+function clearBatchPersonSearchTimer(field: PlanningPersonField): void {
+  const timer = batchPersonSearchTimers[field];
+  if (timer !== undefined) {
+    window.clearTimeout(timer);
+    delete batchPersonSearchTimers[field];
+  }
+}
+
+function closeBatchPersonSelect(field: PlanningPersonField): void {
+  batchPersonSearchStates[field].open = false;
+  clearBatchPersonSearchTimer(field);
+}
+
+function closeAllBatchPersonSelects(): void {
+  (['owner', 'developOwner'] as const).forEach(closeBatchPersonSelect);
+}
+
+function resetBatchPersonSearchState(field: PlanningPersonField): void {
+  clearBatchPersonSearchTimer(field);
+  Object.assign(batchPersonSearchStates[field], createEmptyPersonSearchState());
+  batchPersonSearchSeq[field] += 1;
+}
+
+function resetBatchPersonSearchStates(): void {
+  (['owner', 'developOwner'] as const).forEach(resetBatchPersonSearchState);
+}
+
+async function searchBatchUsers(
+  field: PlanningPersonField,
+  keyword = batchPersonValue(field),
+): Promise<void> {
+  const state = batchPersonSearchStates[field];
+  const text = String(keyword ?? '').trim();
+  state.open = true;
+  state.message = '';
+
+  if (!text) {
+    state.options = [];
+    state.loading = false;
+    state.message = '请输入人员信息';
+    return;
+  }
+
+  const requestSeq = ++batchPersonSearchSeq[field];
+  state.loading = true;
+
+  try {
+    const options = await querySkillPlanningUsers(text);
+    if (requestSeq !== batchPersonSearchSeq[field]) return;
+    state.options = options;
+    state.message = options.length > 0 ? '' : '暂无匹配人员';
+  } catch (error) {
+    if (requestSeq !== batchPersonSearchSeq[field]) return;
+    state.options = [];
+    state.message = error instanceof Error ? error.message : '人员查询失败，请稍后重试';
+  } finally {
+    if (requestSeq === batchPersonSearchSeq[field]) state.loading = false;
+  }
+}
+
+function openBatchPersonSelect(field: PlanningPersonField): void {
+  const state = batchPersonSearchStates[field];
+  const value = batchPersonValue(field).trim();
+  state.open = true;
+  if (value) {
+    void searchBatchUsers(field, value);
+    return;
+  }
+  state.options = [];
+  state.message = '请输入人员信息';
+}
+
+function onBatchPersonInput(field: PlanningPersonField, event: Event): void {
+  const target = event.target instanceof HTMLInputElement ? event.target : null;
+  const value = target?.value ?? '';
+  const state = batchPersonSearchStates[field];
+  setBatchPersonValue(field, value);
+  state.touched = true;
+  state.selectedLabel = '';
+  state.open = true;
+  if (field === 'owner') setBatchOwnerDepartment('');
+  clearBatchPersonSearchTimer(field);
+  batchPersonSearchTimers[field] = window.setTimeout(() => {
+    void searchBatchUsers(field, value);
+  }, 250);
+}
+
+function chooseBatchPerson(field: PlanningPersonField, option: SkillPlanningUserOption): void {
+  setBatchPersonValue(field, option.label);
+  const state = batchPersonSearchStates[field];
+  state.selectedLabel = option.label;
+  state.touched = false;
+  state.options = [option];
+  state.message = '';
+  closeBatchPersonSelect(field);
+  if (field === 'owner') setBatchOwnerDepartment(option.department);
+}
+
+function isBatchPersonSelectionMissing(field: PlanningPersonField): boolean {
+  const value = batchPersonValue(field).trim();
+  const state = batchPersonSearchStates[field];
+  return Boolean(value && state.touched && state.selectedLabel !== value);
+}
+
 function onPlanningFirstSceneChange(): void {
   planningForm.secondScene = '';
   clearPlanningFormError('firstScene');
@@ -651,6 +775,7 @@ function handlePlanningHeaderFilterOutsideClick(event: MouseEvent): void {
   }
   if (!target.closest('.planning-person-select')) {
     closeAllPlanningPersonSelects();
+    closeAllBatchPersonSelects();
   }
   if (target.closest('.planning-th-filter')) {
     return;
@@ -958,6 +1083,7 @@ function resetBatchErrors() {
 
 function resetBatchForm() {
   Object.assign(batchForm, createEmptyBatchForm());
+  resetBatchPersonSearchStates();
   resetBatchErrors();
 }
 
@@ -985,6 +1111,16 @@ function validateBatchForm(): boolean {
 
   if (batchForm.description.trim().length > 300) {
     batchErrors.description = '最多 300 字';
+  }
+
+  (['owner', 'developOwner'] as const).forEach((field) => {
+    if (isBatchPersonSelectionMissing(field)) {
+      batchErrors[field as PlanningBatchField] = '请选择人员';
+    }
+  });
+
+  if (batchForm.owner.trim() && !batchForm.deptName.trim()) {
+    batchErrors.deptName = '请重新选择责任 Owner 带出部门';
   }
 
   return Object.keys(batchErrors).length === 0;
@@ -1280,6 +1416,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handlePlanningHeaderFilterOutsideClick);
   clearProductSearchTimer();
   (['owner', 'developOwner'] as const).forEach(clearPlanningPersonSearchTimer);
+  (['owner', 'developOwner'] as const).forEach(clearBatchPersonSearchTimer);
   if (toastTimer) {
     window.clearTimeout(toastTimer);
     toastTimer = null;
@@ -2720,19 +2857,106 @@ onBeforeUnmount(() => {
               </label>
               <label class="planning-field">
                 <span>责任 Owner</span>
-                <input v-model.trim="batchForm.owner" type="text" placeholder="不填写则不修改" />
+                <div class="planning-person-select planning-person-select--dialog">
+                  <input
+                    :value="batchForm.owner"
+                    type="text"
+                    :class="{ 'has-error': batchErrors.owner }"
+                    placeholder="不填写则不修改"
+                    @focus="openBatchPersonSelect('owner')"
+                    @input="onBatchPersonInput('owner', $event)"
+                    @keydown.enter.prevent="searchBatchUsers('owner')"
+                  />
+                  <div
+                    v-if="batchPersonSearchStates.owner.open"
+                    class="planning-person-panel"
+                    @mousedown.stop
+                  >
+                    <div class="planning-person-list">
+                      <span
+                        v-if="batchPersonSearchStates.owner.loading"
+                        class="planning-person-empty"
+                        >查询中...</span
+                      >
+                      <template v-else>
+                        <button
+                          v-for="item in batchPersonSearchStates.owner.options"
+                          :key="'batch-owner-' + item.label"
+                          type="button"
+                          class="planning-person-option"
+                          :class="{ 'is-selected': item.label === batchForm.owner }"
+                          @click="chooseBatchPerson('owner', item)"
+                        >
+                          {{ item.label }}
+                        </button>
+                        <span
+                          v-if="batchPersonSearchStates.owner.message"
+                          class="planning-person-empty"
+                        >
+                          {{ batchPersonSearchStates.owner.message }}
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+                <small v-if="batchErrors.owner">{{ batchErrors.owner }}</small>
               </label>
               <label class="planning-field">
                 <span>归属部门</span>
-                <input v-model.trim="batchForm.deptName" type="text" placeholder="不填写则不修改" />
+                <input
+                  :value="batchForm.deptName"
+                  type="text"
+                  readonly
+                  :class="{ 'has-error': batchErrors.deptName }"
+                  placeholder="随责任 Owner 自动带出"
+                />
+                <small v-if="batchErrors.deptName">{{ batchErrors.deptName }}</small>
               </label>
               <label class="planning-field">
                 <span>开发责任人</span>
-                <input
-                  v-model.trim="batchForm.developOwner"
-                  type="text"
-                  placeholder="不填写则不修改"
-                />
+                <div class="planning-person-select planning-person-select--dialog">
+                  <input
+                    :value="batchForm.developOwner"
+                    type="text"
+                    :class="{ 'has-error': batchErrors.developOwner }"
+                    placeholder="不填写则不修改"
+                    @focus="openBatchPersonSelect('developOwner')"
+                    @input="onBatchPersonInput('developOwner', $event)"
+                    @keydown.enter.prevent="searchBatchUsers('developOwner')"
+                  />
+                  <div
+                    v-if="batchPersonSearchStates.developOwner.open"
+                    class="planning-person-panel"
+                    @mousedown.stop
+                  >
+                    <div class="planning-person-list">
+                      <span
+                        v-if="batchPersonSearchStates.developOwner.loading"
+                        class="planning-person-empty"
+                        >查询中...</span
+                      >
+                      <template v-else>
+                        <button
+                          v-for="item in batchPersonSearchStates.developOwner.options"
+                          :key="'batch-developOwner-' + item.label"
+                          type="button"
+                          class="planning-person-option"
+                          :class="{ 'is-selected': item.label === batchForm.developOwner }"
+                          @click="chooseBatchPerson('developOwner', item)"
+                        >
+                          {{ item.label }}
+                        </button>
+                        <span
+                          v-if="batchPersonSearchStates.developOwner.message"
+                          class="planning-person-empty"
+                        >
+                          {{ batchPersonSearchStates.developOwner.message }}
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+                <small v-if="batchErrors.developOwner">{{ batchErrors.developOwner }}</small>
               </label>
               <label class="planning-field">
                 <span>计划完成时间</span>
