@@ -9256,7 +9256,8 @@ span {
 }
 
 .ai-evolution-table {
-  min-width: 1320px;
+  min-width: 1360px;
+  table-layout: fixed;
 }
 
 .ai-evolution-row td {
@@ -9295,30 +9296,33 @@ span {
   word-break: break-word;
 }
 
-.ai-evo-col-ops {
-  min-width: 188px;
+.ai-evolution-table .ai-evo-col-ops {
+  width: 190px;
   text-align: center;
 }
 
+.ai-evolution-table .col-skill {
+  width: 150px;
+}
+
 .ai-evolution-table .col-desc {
-  width: 160px;
-  max-width: 160px;
-}
-
-.ai-evolution-table .col-ide {
-  min-width: 96px;
-}
-
-.ai-evolution-table .col-time {
-  min-width: 150px;
-}
-
-.ai-evolution-table .col-repo {
-  min-width: 220px;
+  width: 150px;
 }
 
 .ai-evolution-table .col-first-msg {
-  min-width: 220px;
+  width: 280px;
+}
+
+.ai-evolution-table .col-repo {
+  width: 240px;
+}
+
+.ai-evolution-table .col-ide {
+  width: 100px;
+}
+
+.ai-evolution-table .col-time {
+  width: 150px;
 }
 
 .ai-evolution-table .col-ops-td {
