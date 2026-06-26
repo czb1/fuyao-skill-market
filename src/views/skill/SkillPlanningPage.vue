@@ -7,7 +7,6 @@ import {
   createSkillPlanning,
   deleteSkillPlanning,
   downloadSkillPlanningTemplate,
-  exportSkillPlanningToExcel,
   importSkillPlanningFromExcel,
   getProductPlanning,
   querySkillPlanningUsers,
@@ -26,6 +25,7 @@ import {
   type SkillPlanningQuery,
   type SkillPlanningSortOrder,
 } from '../../services/skillMarket/skillPlanningService';
+import { openLink } from '@/utils/common';
 
 type PlanningFormMode = 'create' | 'edit';
 type PlanningDepartmentTreeNode = {
@@ -507,6 +507,8 @@ function onPlanningPersonInput(field: PlanningPersonField, event: Event): void {
     void searchPlanningUsers(field, value);
   }, 250);
 }
+
+const getLastDept;
 
 function choosePlanningPerson(field: PlanningPersonField, option: SkillPlanningUserOption): void {
   setPlanningPersonValue(field, option.label);
@@ -1280,11 +1282,11 @@ async function submitImportFile() {
     const result = await importSkillPlanningFromExcel(selectedImportFile.value);
     if (result.errorList.length > 0) {
       importError.value = `Skill 规划已成功导入 ${result.successCount} 条，${result.failCount ? '失败导入 ' + result.failCount + ' 条' : ''}（共需要导入 ${result.totalCount} 条）`;
-      importError.value = `\n其中导入失败的有：${result.errorList.reduce((pre,curr) => pre + `\n    第${curr.rowNum}行：` + curr.errMsg, '')}`;
+      importError.value = `\n其中导入失败的有：${result.errorList.reduce((pre, curr) => pre + `\n    第${curr.rowNum}行：` + curr.errMsg, '')}`;
       return;
     } else {
-      importSuccess.value = `Skill 规划已成功导入 ${result.successCount} 条（共需要导入 ${result.totalCount} 条）`
-      importError.value = ''
+      importSuccess.value = `Skill 规划已成功导入 ${result.successCount} 条（共需要导入 ${result.totalCount} 条）`;
+      importError.value = '';
     }
 
     importSubmitting.value = false;
@@ -2773,7 +2775,9 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div v-if="importError" class="import-dialog__error"><pre>{{ importError }}</pre></div>
+            <div v-if="importError" class="import-dialog__error">
+              <pre>{{ importError }}</pre>
+            </div>
 
             <div class="import-dialog__template">
               <button
