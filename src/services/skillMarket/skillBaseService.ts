@@ -306,6 +306,7 @@ export const skillBaseService = {
     });
   },
 
+  // 批量更改skill规划
   batchUpdateSkillPlanning: (body: any): any => {
     return httpRequest.skill<any>({
       url: `/config/batch_update`,
