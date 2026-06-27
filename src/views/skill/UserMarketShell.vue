@@ -2704,6 +2704,7 @@ type AiEvolutionStatus = 'pending' | 'approved' | 'rejected';
 type AiEvolutionSkillRow = {
   id: string;
   name: string;
+  source: string;
   description: string;
   sessionId: string;
   summary: string;
@@ -2742,6 +2743,7 @@ function mapSkillDraftToRow(dto: any): AiEvolutionSkillRow {
   return {
     id: String(dto?.skillId ?? ''),
     name: String(dto?.skillName ?? ''),
+    source: String(dto?.source ?? ''),
     description: String(dto?.description ?? ''),
     sessionId: String(dto?.sessionId ?? ''),
     summary: String(dto?.description ?? ''),
@@ -4342,10 +4344,14 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
           <table class="table my-table ai-evolution-table">
             <thead>
               <tr>
-                <th class="col-skill">Skill</th>
-                <th class="col-session">Session ID</th>
-                <th class="col-time">时间</th>
-                <th>简介</th>
+                <th class="col-skill">Skill 名称</th>
+                <th class="col-source">来源</th>
+                <th class="col-desc">Skill 描述</th>
+                <th class="col-first-msg">第一条消息内容</th>
+                <th class="col-repo">代码仓信息</th>
+                <th class="col-ide">IDE</th>
+                <th class="col-time">Session 时间</th>
+                <th class="col-time">Skill 生成时间</th>
                 <th class="col-ops ai-evo-col-ops">操作</th>
               </tr>
             </thead>
@@ -4365,17 +4371,35 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                   </div>
                 </td>
                 <td>
-                  <div class="cell-main cell-main-plain ai-evolution-session">
-                    {{ row.sessionId }}
+                  <div class="cell-main cell-main-plain ai-evolution-source">
+                    {{ row.source || '—' }}
+                  </div>
+                </td>
+                <td>
+                  <div class="ai-evolution-reason">{{ row.description || '—' }}</div>
+                </td>
+                <td>
+                  <div class="ai-evolution-first-msg">{{ row.firstMessage || '—' }}</div>
+                </td>
+                <td>
+                  <div class="cell-main cell-main-plain ai-evolution-repo">
+                    {{ row.codeRepo || '—' }}
+                  </div>
+                </td>
+                <td>
+                  <div class="cell-main cell-main-plain ai-evolution-ide">
+                    {{ row.ide || '—' }}
                   </div>
                 </td>
                 <td>
                   <div class="cell-main cell-main-plain ai-evolution-time">
-                    {{ row.generatedAt }}
+                    {{ row.sessionTime || '—' }}
                   </div>
                 </td>
                 <td>
-                  <div class="ai-evolution-reason">{{ row.summary }}</div>
+                  <div class="cell-main cell-main-plain ai-evolution-time">
+                    {{ row.generatedAt || '—' }}
+                  </div>
                 </td>
                 <td class="col-ops-td" @click.stop>
                   <div class="ops ai-evolution-ops">
@@ -4405,7 +4429,7 @@ async function onOpsExcelFileChange(ev: Event): Promise<void> {
                 </td>
               </tr>
               <tr v-if="aiEvolutionSkills.length === 0">
-                <td colspan="5" class="empty-row">暂无待审批的自进化 Skill</td>
+                <td colspan="9" class="empty-row">暂无待审批的自进化 Skill</td>
               </tr>
             </tbody>
           </table>
