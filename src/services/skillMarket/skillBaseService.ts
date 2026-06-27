@@ -472,6 +472,43 @@ export const skillBaseService = {
     });
   },
 
+  // ==================== Agent 调测相关接口 ====================
+
+  // agent详情查询
+  getAgentDetail: (userId: string, agentId: string): any => {
+    return httpRequest.direct<any>({
+      baseURL: corecode,
+      url: `/aiapp-v2/v1/ai_app_api/agent_portal/agent/detail?appId=${agentId}&userId=${userId}`,
+      method: 'get',
+    });
+  },
+  // agent用户config接口
+  getAgentConfig: (agentId: string, userId: string): any => {
+    return httpRequest.direct<any>({
+      baseURL: ai,
+      url: `/aiapp-v2/v1/ai_agent/agent_config/${agentId}/${userId}`,
+      method: 'get',
+    });
+  },
+  // streamchat
+  apiRun: (data: any): any => {
+    return httpRequest.direct<any>({
+      baseURL: ai,
+      url: `/aiapp-v2/v1/ai_app_api/run/stream_chat`,
+      method: 'post',
+      data: data,
+    });
+  },
+  // agent插入历史记录接口
+  setHistoryInfo: (data: any): any => {
+    return httpRequest.direct<any>({
+      baseURL: ai,
+      url: `/aiapp-v2/v1/ai_api_history/insert_record`,
+      method: 'post',
+      data: data,
+    });
+  },
+
   // 热榜数量接口
   getHotSkillNums: (): any => {
     return httpRequest.skill<any>({
