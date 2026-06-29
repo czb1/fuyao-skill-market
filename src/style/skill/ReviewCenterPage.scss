@@ -3282,16 +3282,19 @@ input:focus {
 
 .history-badge-icons {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  min-width: 112px;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .history-badge-icons img {
   display: block;
-  width: 32px;
-  height: 32px;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
 }
 
@@ -3316,7 +3319,7 @@ input:focus {
 }
 
 .version-history-modal {
-  width: min(1200px, calc(100vw - 56px));
+  width: min(1400px, calc(100vw - 56px));
 }
 
 .version-history-modal__body {
@@ -3325,6 +3328,9 @@ input:focus {
 }
 
 .version-history-group {
+  display: flex;
+  flex-direction: column;
+  max-height: min(560px, calc(100vh - 260px));
   overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -3355,8 +3361,17 @@ input:focus {
   font-weight: 700;
 }
 
+.version-history-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(500px, calc(100vh - 330px));
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
 .version-history-table {
-  width: 980px;
+  width: 100%;
+  min-width: 980px;
   margin: 0;
   table-layout: fixed;
   border-collapse: collapse;
@@ -3375,6 +3390,9 @@ input:focus {
 }
 
 .version-history-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background: #ffffff;
   color: #64748b;
   font-size: 12px;
@@ -3394,7 +3412,13 @@ input:focus {
 }
 
 .version-history-table th:nth-child(4) {
-  width: 140px;
+  width: 132px;
+}
+
+.version-history-table th:nth-child(4),
+.version-history-table td:nth-child(4) {
+  padding-right: 10px;
+  padding-left: 10px;
 }
 
 .version-history-table th:nth-child(5) {

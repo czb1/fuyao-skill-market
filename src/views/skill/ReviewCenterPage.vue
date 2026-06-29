@@ -2333,7 +2333,8 @@ onBeforeUnmount(() => {
                 条记录</span
               >
             </div>
-            <table class="version-history-table">
+            <div class="version-history-table-scroll">
+              <table class="version-history-table">
               <thead>
                 <tr>
                   <th>评审人</th>
@@ -2412,7 +2413,8 @@ onBeforeUnmount(() => {
                   </td>
                 </tr>
               </tbody>
-            </table>
+              </table>
+            </div>
           </section>
         </div>
       </section>

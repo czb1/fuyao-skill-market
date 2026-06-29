@@ -1,6 +1,6 @@
-/** 新开一个浏览tab，打开外部链接 */
+/** 新开一个浏览器tab, 打开外部链接 */
 export const openLink = (link: string): void => {
-  window.open(link, '_blank', 'noopener,norefeerer');
+  window.open(link, '_blank', 'noopener,noreferrer');
 };
 
 /** 判断是否是JSON格式的字符串 */
