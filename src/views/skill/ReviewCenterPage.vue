@@ -369,6 +369,20 @@ function reviewBadgeImageSrc(badgeId: string): string {
   return `${import.meta.env.BASE_URL}badges/${encodeURIComponent(badgeId)}.png`;
 }
 
+function formatHistoryReviewTime(value: unknown): string {
+  const text = String(value ?? '').trim();
+  const matched = text
+    .replace('T', ' ')
+    .replace(/\.\d+.*$/, '')
+    .match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})(?::(\d{2}))?/);
+
+  if (!matched) {
+    return text;
+  }
+
+  return `${matched[1]} ${matched[2]}:${matched[3] ?? '00'}`;
+}
+
 function normalizeExpertReviewDimensionScores(value: unknown): ExpertReviewDimensionScoreDto[] {
   if (!Array.isArray(value)) {
     return [];
@@ -2338,7 +2352,7 @@ onBeforeUnmount(() => {
                       <span>AI评审</span>
                     </div>
                   </td>
-                  <td class="history-time">{{ group[1].aiScore.evaluateTime }}</td>
+                  <td class="history-time">{{ formatHistoryReviewTime(group[1].aiScore.evaluateTime) }}</td>
                   <td class="history-dimension-scores">
                     <pre class="history-dimension-pre">{{
                       group[1].aiScore.dimensionScores.reduce(
@@ -2365,7 +2379,7 @@ onBeforeUnmount(() => {
                       <span>专家评审</span>
                     </div>
                   </td>
-                  <td class="history-time">{{ expertReview.reviewedAt }}</td>
+                  <td class="history-time">{{ formatHistoryReviewTime(expertReview.reviewedAt) }}</td>
                   <td class="history-dimension-scores">
                     <pre class="history-dimension-pre">{{
                       expertReview.dimensions.reduce(
