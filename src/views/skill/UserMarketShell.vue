@@ -123,19 +123,11 @@ const innerTabAliases: Record<string, UserInnerTab> = {
   skill规划: 'planning',
 };
 
-function routeTabFromQuery(value: unknown): UserInnerTab {
-  const raw = Array.isArray(value) ? value[0] : value;
-  if (typeof raw !== 'string') {
-    return 'hot';
-  }
-  return innerTabAliases[raw] ?? innerTabAliases[raw.toLowerCase()] ?? 'hot';
-}
-
 const helpLink = () => {
   showToast('帮助说明暂未配置');
 };
 
-const innerTab = ref<UserInnerTab>(routeTabFromQuery(route.query.tab));
+const innerTab = ref<UserInnerTab>(route?.query?.tab || 'hot');
 const uploadOpen = ref(false);
 const search = ref('');
 const hotSearch = ref('');
@@ -931,11 +923,6 @@ function parentTargetOrigin(): string {
   return String(webfrondUrl || '*');
 }
 
-function parentOriginMatches(event: MessageEvent): boolean {
-  const expectedOrigin = String(webfrondUrl || '').trim();
-  return !expectedOrigin || event.origin === expectedOrigin;
-}
-
 function notifyParentRouteChange(payload: Record<string, unknown>): void {
   if (window.parent === window) {
     return;
@@ -943,31 +930,21 @@ function notifyParentRouteChange(payload: Record<string, unknown>): void {
   window.parent.postMessage(payload, parentTargetOrigin());
 }
 
-function skillIdFromParentPayload(data: Record<string, unknown>): string {
-  return firstRouteString(data.skillId) || firstRouteString(data.skillID) || firstRouteString(data.skill_id);
-}
-
 const handleParentMessage = (event: MessageEvent) => {
-  if (!parentOriginMatches(event)) {
+  // 跨域场景建议校验来源
+  if (event.origin !== webfrondUrl) {
     return;
   }
   const data = event.data;
-  if (!data || typeof data !== 'object') {
-    return;
+
+  if (data?.type === 'SKill_Square_Init') {
+    const thisTab = data?.tab ?? 'hot';
+    goTab(thisTab);
   }
-  const payload = data as Record<string, unknown>;
-  if (payload.type !== 'SKill_Square_Init' && payload.type !== 'Skill_Square_Init') {
-    return;
-  }
-  const skillId = skillIdFromParentPayload(payload);
-  if (skillId) {
-    void openSkillDetailRoute(skillId, true, payload.tab);
-    return;
-  }
-  goTab(payload.tab ?? 'hot');
 };
 
 const isExpertReviewer = ref(false);
+window.onmessage = handleParentMessage;
 
 onMounted(async () => {
   if (transportIsHttp) {
@@ -991,7 +968,6 @@ onMounted(async () => {
     // await startOverviewRemoteFetch();
     // await loadOpsDashboardOverview();
   }
-  window.addEventListener('message', handleParentMessage);
   document.addEventListener('mousedown', onOverviewDimensionDocDown);
   document.addEventListener('keydown', onOverviewDimensionKeydown);
   window.addEventListener('resize', scheduleOverviewDimensionOverflowCheck);
@@ -1351,8 +1327,7 @@ function openUpload(): void {
   uploadOpen.value = true;
 }
 
-function goTab(tabInput: unknown, replace = false): void {
-  const tab = routeTabFromQuery(tabInput);
+function goTab(tab: UserInnerTab, replace = false): void {
   innerTab.value = tab;
   closeDetailPanel();
   const target = {
@@ -1361,23 +1336,19 @@ function goTab(tabInput: unknown, replace = false): void {
       tab,
     },
   };
-  const alreadyOnTarget =
-    route.name === 'skill-market' &&
-    route.query.tab != null &&
-    routeTabFromQuery(route.query.tab) === tab &&
-    Object.keys(route.query).every((key) => key === 'tab');
-  if (!alreadyOnTarget) {
-    if (replace) {
-      void router.replace(target);
-    } else {
-      void router.push(target);
-    }
+  if (replace) {
+    void router.replace(target);
+  } else {
+    void router.push(target);
   }
-  notifyParentRouteChange({
-    type: 'CHILD_TAB_CHANGE',
-    view: 'tab',
-    tab,
-  });
+  // 通知父页面
+  window.parent.postMessage(
+    {
+      type: 'CHILD_TAB_CHANGE',
+      tab,
+    },
+    webfrondUrl,
+  );
 }
 
 function normalizeSyncRecord(raw: unknown): SyncApplicationListItemDto {
@@ -1909,11 +1880,8 @@ async function executeDeleteMyReleaseSkill(): Promise<void> {
 
 watch(
   () => route.query.tab,
-  (tab) => {
-    const nextTab = routeTabFromQuery(tab);
-    if (nextTab !== innerTab.value) {
-      innerTab.value = nextTab;
-    }
+  () => {
+    goTab(route.query.tab);
   },
 );
 
@@ -2462,13 +2430,12 @@ const handleDetailItem = async (skill: any, id: any) => {
 async function openSkillDetailRoute(
   skillIdInput: unknown,
   replace = false,
-  sourceTab: unknown = innerTab.value,
+  tab: unknown = innerTab.value,
 ): Promise<void> {
   const skillId = firstRouteString(skillIdInput);
   if (!skillId) {
     return;
   }
-  const tab = routeTabFromQuery(sourceTab);
   const target = {
     name: 'skill-detail',
     params: { skillId },
