@@ -21,7 +21,6 @@ const props = withDefaults(
     closeText?: string;
     showTrySkill?: boolean;
     showDownload?: boolean;
-    showVersionManage?: boolean;
   }>(),
   {
     showDelete: true,
@@ -32,7 +31,6 @@ const props = withDefaults(
     closeText: '',
     showTrySkill: true,
     showDownload: true,
-    showVersionManage: true,
   },
 );
 
@@ -91,7 +89,7 @@ const showPageActionCard = computed(
     (props.showTrySkill ||
       props.showDownload ||
       props.showDelete ||
-      (!props.aiEvolution && props.showVersionManage)),
+      !props.aiEvolution),
 );
 
 type DetailContentTab = 'detail' | 'versions';
@@ -760,7 +758,7 @@ onBeforeUnmount(() => {
               {{ deletingSkillId === currentSkillId() ? '删除中…' : '删除' }}
             </button>
             <div
-              v-if="!aiEvolution && showVersionManage"
+              v-if="!aiEvolution"
               ref="detailMoreWrapRef"
               class="detail-more-wrap"
             >
